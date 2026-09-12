@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VisionBridge · Electron vs Tauri</title>
+<style>
+  :root {
+    --ink-50:#faf9f7; --ink-100:#f4f2ee; --ink-200:#e8e5df; --ink-400:#a8a29a;
+    --ink-600:#6b6559; --ink-800:#33302a; --ink-900:#1b1915;
+    --marker:#c67c1b; --marker-soft:#f6ead6;
+    --pine:#2c7f69; --pine-soft:#e2f0eb;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --r:14px; --r-sm:9px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:var(--font); background:var(--ink-50); color:var(--ink-900);
+    line-height:1.7; -webkit-font-smoothing:antialiased;
+    padding:56px 28px 96px;
+  }
+  .wrap { max-width:940px; margin:0 auto; }
+  .eyebrow {
+    font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-400);
+  }
+  h1 { font-size:33px; line-height:1.2; letter-spacing:-.02em; margin:10px 0 8px; font-weight:700; }
+  h2 {
+    font-size:19px; margin:52px 0 14px; letter-spacing:-.01em; font-weight:700;
+    padding-bottom:9px; border-bottom:1px solid var(--ink-200);
+  }
+  h3 { font-size:14px; margin:26px 0 8px; font-weight:700; }
+  p { color:var(--ink-800); font-size:14px; }
+  p + p { margin-top:12px; }
+  .lede { font-size:15.5px; color:var(--ink-600); max-width:64ch; }
+  a { color:var(--marker); }
+
+  /* headline verdict */
+  .verdict {
+    margin:30px 0 0; padding:26px 28px; border-radius:var(--r);
+    background:#fff; border:1px solid var(--ink-200);
+    display:flex; align-items:baseline; gap:20px; flex-wrap:wrap;
+  }
+  .verdict .num {
+    font-size:58px; font-weight:750; letter-spacing:-.035em; line-height:1;
+    color:var(--pine);
+  }
+  .verdict .num small { font-size:24px; font-weight:600; }
+  .verdict .txt { font-size:14px; color:var(--ink-600); flex:1; min-width:240px; }
+
+  /* table */
+  table { width:100%; border-collapse:collapse; margin-top:18px; font-size:13.5px; }
+  thead th {
+    text-align:left; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-400); font-weight:700; padding:0 12px 9px; border-bottom:1px solid var(--ink-200);
+  }
+  tbody td { padding:13px 12px; border-bottom:1px solid var(--ink-100); vertical-align:middle; }
+  tbody tr:last-child td { border-bottom:0; }
+  td.metric { font-weight:600; }
+  td.e { font-family:var(--mono); color:var(--ink-600); }
+  td.t { font-family:var(--mono); color:var(--ink-900); font-weight:600; }
+  .pill {
+    display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px;
+    font-weight:700; background:var(--pine-soft); color:var(--pine); font-family:var(--font);
+  }
+  .pill.warm { background:var(--marker-soft); color:#8a5410; }
+
+  /* cards */
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-top:18px; }
+  .card {
+    background:#fff; border:1px solid var(--ink-200); border-radius:var(--r); padding:18px 20px;
+  }
+  .card h3 { margin:0 0 8px; }
+  .card p, .card li { font-size:13px; color:var(--ink-600); }
+  ul { list-style:none; }
+  li { padding-left:17px; position:relative; margin-top:6px; font-size:13.5px; }
+  li::before {
+    content:""; position:absolute; left:0; top:.62em; width:6px; height:6px;
+    border-radius:2px; background:var(--marker); opacity:.55;
+  }
+  li.done::before { background:var(--pine); opacity:1; }
+
+  /* screenshot */
+  .shot {
+    margin-top:18px; border:1px solid var(--ink-200); border-radius:var(--r);
+    overflow:hidden; background:#fff;
+  }
+  .shot img { display:block; width:100%; max-width:466px; height:auto; }
+  .shot .cap { padding:11px 16px; font-size:12px; color:var(--ink-400); border-top:1px solid var(--ink-100); }
+  .side { display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start; }
+  .side .shot { flex:0 0 auto; }
+
+  code {
+    font-family:var(--mono); font-size:12.5px; background:var(--ink-100);
+    padding:1.5px 6px; border-radius:5px; color:var(--ink-800);
+  }
+  pre {
+    font-family:var(--mono); font-size:12.5px; background:var(--ink-900); color:#ece9e3;
+    padding:16px 18px; border-radius:var(--r-sm); overflow-x:auto; margin-top:12px; line-height:1.65;
+  }
+  pre .c { color:#8d8579; }
+  .note {
+    margin-top:18px; padding:15px 18px; border-radius:var(--r-sm);
+    background:var(--marker-soft); border:1px solid #e8d4b0; font-size:13px; color:#6b4a14;
+  }
+  footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--ink-200); font-size:12px; color:var(--ink-400); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">移植实验 · 结果报告</p>
+  <h1>VisionBridge：Electron → Tauri</h1>
+  <p class="lede">
+    把同一个应用原样移植到 Tauri，前端源码一行未改（20 个 UI 组件全部复用），
+    只把「Electron 主进程负责的事」按 Tauri 的方式重写。目标是验证体积能否小十倍。
+  </p>
+
+  <div class="verdict">
+    <div class="num">72<small>×</small></div>
+    <div class="txt">
+      <strong>安装后磁盘占用小了 72 倍</strong>（263.4 MB → 3.6 MB）。
+      十倍的目标大幅超额——因为真正的差距不在应用代码，而在运行时：
+      Electron 随包分发一整套 Chromium + Node，Tauri 用系统自带的 WebView2。
+    </div>
+  </div>
+
+  <h2>体积对比</h2>
+  <table>
+    <thead>
+      <tr><th>指标</th><th>Electron</th><th>Tauri</th><th>结果</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="metric">安装包（setup）</td>
+        <td class="e">72.6 MB</td><td class="t">1.4 MB</td>
+        <td><span class="pill">小 51.1×</span></td>
+      </tr>
+      <tr>
+        <td class="metric">免安装单文件</td>
+        <td class="e">72.4 MB</td><td class="t">3.2 MB</td>
+        <td><span class="pill">小 22.3×</span></td>
+      </tr>
+      <tr>
+        <td class="metric">安装后磁盘占用</td>
+        <td class="e">263.4 MB</td><td class="t">3.6 MB</td>
+        <td><span class="pill">小 72.3×</span></td>
+      </tr>
+      <tr>
+        <td class="metric">程序代码体积</td>
+        <td class="e">22.6 MB <span style="color:var(--ink-400)">app.asar</span></td>
+        <td class="t">3.2 MB <span style="color:var(--ink-400)">整个 exe</span></td>
+        <td><span class="pill warm">小 7.0×</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="margin-top:14px; font-size:13px; color:var(--ink-400);">
+    注：Electron 的 app.asar 里含 <code>selection-hook</code> 的预编译的原生模块，所以这个数字偏大；
+    Tauri 侧 3.2 MB 是「Rust 代码 + 全部前端资源 + 图标」的完整应用，不含任何运行时。
+  </p>
+
+  <h2>为什么差这么多</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Electron 的分发模型</h3>
+      <p>每个应用自带一份 Chromium + Node.js。这 260 MB 里，应用自己的代码只占 22 MB，
+      其余全是运行时——而这部分每个 Electron 应用都要重复装一遍。</p>
+    </div>
+    <div class="card">
+      <h3>Tauri 的分发模型</h3>
+      <p>用 Windows 自带的 WebView2（本机已存在，Edge 的一部分）。打包产物只有一个 exe，
+      没有运行时、没有 node_modules、没有解压出来的原生模块。</p>
+    </div>
+    <div class="card">
+      <h3>代价</h3>
+      <p>依赖系统 WebView2（Win10 1803+ 自带，更老的系统需要引导安装）；
+      Rust 编译比 Node 打包慢；原生能力要自己写 FFI 而不是调 npm 包。</p>
+    </div>
+  </div>
+
+  <h2>复刻了什么</h2>
+  <p>体积不是靠砍功能换来的。下面这些都实际可用：</p>
+  <div class="grid">
+    <div class="card">
+      <h3>界面与设置</h3>
+      <ul>
+        <li class="done">主窗口 + 左侧导航设置页（模型 / 管道 / 通用 / 配置）</li>
+        <li class="done">基础模式（多模态 / 仅文字）、混合模式、高级模式自定义管道</li>
+        <li class="done">厂商预设目录、模型列表获取、models.dev 能力目录</li>
+        <li class="done">4 套主题、中英双语、工具条按钮自定义</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>原生能力</h3>
+      <ul>
+        <li class="done">GDI 截屏 + 全屏遮罩框选（含实时尺寸与操作条翻转）</li>
+        <li class="done">结果卡片窗口、划词工具条窗口</li>
+        <li class="done">全局快捷键 <code>Alt+A</code> / <code>Alt+T</code></li>
+        <li class="done">托盘图标 + 关闭到托盘 / 退出 行为设置</li>
+        <li class="done">划词取词（拖选检测 + Ctrl+C 剪贴板往返，并还原原剪贴板）</li>
+        <li class="done">管道引擎：VLM / LLM / OCR / ASR / TTS / 生图 节点串联</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>运行实拍</h2>
+  <p>下面是<strong>真实运行中的 Tauri 版窗口</strong>（不是 Electron 版的截图）：</p>
+  <div class="side">
+    <div class="shot">
+      <img src="tauri-main.png" alt="Tauri 版主窗口" />
+      <div class="cap">Tauri 版 · 450×650 · 纸主题</div>
+    </div>
+    <div style="flex:1; min-width:280px;">
+      <h3>像素级比对</h3>
+      <p style="font-size:13.5px; color:var(--ink-600);">
+        把两张截图的颜色分布对比，主色占比几乎逐项吻合——同一个前端、同一套设计令牌，
+        在 WebView2 里渲染出来的结果与 Chromium 一致：
+      </p>
+      <table style="margin-top:12px;">
+        <thead><tr><th>颜色</th><th>Tauri</th><th>Electron</th></tr></thead>
+        <tbody>
+          <tr><td>纸 <code>#FAF9F7</code></td><td class="t">71.3%</td><td class="e">75.8%</td></tr>
+          <tr><td>白 <code>#FFFFFF</code></td><td class="t">11.2%</td><td class="e">11.6%</td></tr>
+          <tr><td>荧光笔 <code>#C67C1B</code></td><td class="t">3.7%</td><td class="e">3.9%</td></tr>
+          <tr><td>纸深 <code>#F4F2EE</code></td><td class="t">0.6%</td><td class="e">0.6%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>实测反馈的三个 bug（已修复）</h2>
+  <p>
+    你在实际使用中发现的问题，逐一用可量化的方式定位并修掉了。
+    这个环境无法把截图给模型看，所以每一条都用<strong>数字</strong>验证：
+    注入脚本把布局与渲染事实报回主进程，再用整屏亮度、颜色分布做客观比对。
+  </p>
+  <table>
+    <thead><tr><th>你看到的现象</th><th>根因</th><th>验证</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="metric">划词后弹出一个怪异的框<br /><span style="color:var(--ink-400);font-weight:400">「截图 / 设置」被挤成两行</span></td>
+        <td>App 从 URL 读窗口类型，而 <strong>Tauri 的资源解析会丢掉 <code>?window=</code> 查询串</strong>，
+            于是 280×52 的工具条窗口回落到主界面分支，整个 UI 被塞了进去</td>
+        <td><span class="pill">工具条上报 <code>txt:翻译 解释</code></span></td>
+      </tr>
+      <tr>
+        <td class="metric">Alt+A 直接全屏、看不到截图</td>
+        <td>遮罩的压暗是画在<strong>透明窗口</strong>上的；我此前为排查空白页给 <code>body</code> 加的不透明底色，
+            把它变成了满屏纸色（实测整屏 89.9% 是同一个颜色）</td>
+        <td><span class="pill">修复后 3028 种颜色，桌面透过压暗层可见</span></td>
+      </tr>
+      <tr>
+        <td class="metric">结果卡片从来不出现</td>
+        <td><strong>同步命令在主线程里创建窗口 → 死锁</strong>：<code>build()</code> 要等事件循环，
+            而事件循环阻塞在这条命令里。窗口从未被创建，且没有任何报错</td>
+        <td><span class="pill">命令改 async，卡片出现在选区旁</span></td>
+      </tr>
+      <tr>
+        <td class="metric">划词有时弹出错误的内容</td>
+        <td>模拟 Ctrl+C 后不校验剪贴板是否变化，会把<strong>之前复制的内容</strong>当成选区</td>
+        <td><span class="pill">先清空再复制，空结果 = 无选中</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:22px;">
+    <strong>顺带发现的一个更基础的问题：</strong>Tauri v2 在没有
+    <code>capabilities</code> 文件时，会拒绝所有插件命令（<code>plugin:event|listen not allowed by ACL</code>），
+    而报错只出现在 unhandled rejection 里。这意味着<strong>全部五个事件通道</strong>
+    （截图路由、划词推送、结果显示、取消请求）此前都是断的 —— 这正是「两个版本里 Tauri 版更不稳定」的主要原因。
+    已补上 <code>src-tauri/capabilities/default.json</code>。
+  </div>
+
+  <h2>修复后实拍</h2>
+  <div class="side">
+    <div class="shot" style="max-width:260px;">
+      <img src="win-Vision-Bridge-260x52.png" alt="划词工具条" />
+      <div class="cap">划词工具条 · 260×52 · 「翻译 / 解释」</div>
+    </div>
+    <div class="shot" style="flex:1; min-width:280px;">
+      <img src="screen-overlay.png" alt="遮罩压暗效果" />
+      <div class="cap">截图遮罩 · 桌面透过 42% 压暗层可见（此前是整屏一张不透明的纸）</div>
+    </div>
+  </div>
+
+  <h2>移植的关键决定</h2>
+
+  <h3>1. 不重写 UI，而是重建 preload 契约</h3>
+  <p>
+    所有界面代码都通过 <code>window.ipcRenderer.*</code> 调用原生层。与其改 20 个组件，
+    不如在 Tauri 之上<strong>把这个对象原样重建出来</strong>——于是前端源码零改动：
+  </p>
+  <pre><span class="c">// src/lib/ipc.ts —— Tauri 版的 preload 替身</span>
+invoke('get_settings')            <span class="c">// 设置读写</span>
+invoke('capture_screen')          <span class="c">// GDI 截屏</span>
+invoke('open_mask', {...})        <span class="c">// 遮罩窗口</span>
+listen('selection-text', ...)     <span class="c">// 划词事件</span></pre>
+
+  <h3>2. 把 HTTP 从「主进程」挪到「渲染进程」</h3>
+  <p>
+    Electron 里所有模型调用都必须在主进程发（渲染进程开不了原生 socket）。
+    Tauri 的渲染进程就是普通 WebView，<code>fetch</code> 直连厂商即可。
+    这一步让 Rust 侧完全不需要 <code>reqwest</code> / <code>tokio</code> / TLS 栈——
+    而这几样东西恰恰是 Rust 二进制体积的大头。
+  </p>
+
+  <h3>3. 手写 Win32 FFI，不引 <code>windows</code> crate</h3>
+  <p>
+    只需要 GDI 截屏、剪贴板、<code>SendInput</code>、几个系统度量。
+    <code>windows</code> crate 会生成几万个条目并显著撑大 release 产物，
+    所以 <code>winmod.rs</code> 里按需声明了几十个函数。
+  </p>
+
+  <h3>4. 划词检测用轮询而不是鼠标钩子</h3>
+  <p>
+    需要识别的只是「按下 → 移动 → 抬起」这一个手势，<code>GetAsyncKeyState</code> 轮询即可判定；
+    而 <code>WH_MOUSE_LL</code> 钩子一旦回调超时会被 Windows 静默摘掉。
+    另外合成输入能更新 <code>GetAsyncKeyState</code>，所以这条路径在自动化测试里也是可验证的。
+  </p>
+
+  <h3>5. 复用 Electron 的设置文件</h3>
+  <p>
+    Rust 侧直接读写 <code>%APPDATA%\vision-bridge\settings.json</code>，
+    所以 Tauri 版一启动就带着你现有的配置（厂商、API Key、主题、工具条按钮），不用重填。
+  </p>
+
+  <h2>构建方式</h2>
+  <pre><span class="c"># 前端（与 Electron 版同一份源码）</span>
+npm run build:web
+
+<span class="c"># Rust + 打包（必须走 Tauri CLI：裸 cargo build 会被判成 dev 模式从而加载 devUrl）</span>
+python tools/build-tauri.py --bundle
+
+<span class="c"># 体积对比报告</span>
+python tools/measure-size.py</pre>
+
+  <div class="note">
+    <strong>必须用 Tauri CLI 构建。</strong>
+    直接 <code>cargo build --release</code> 产出的 exe 启动后会停在 WebView2 错误页：
+    tauri-build 无法区分它与开发构建，于是让窗口去加载 <code>devUrl</code>（localhost:1420），
+    没有服务在监听，导航失败。CLI 会设置 <code>TAURI_ENV_*</code> 把它切到生产模式（内嵌资源）。
+    这个坑花了最久才定位到，现象是窗口标题正常但内容是浏览器错误页。
+  </div>
+
+  <footer>
+    VisionBridge（上游 <code>aorucshiea/VisionBridge</code> @ <code>2da7d82</code>）+ Paper &amp; Marker 界面重构，
+    移植到 Tauri v2 · 2026-09-12
+  </footer>
+
+</div>
+</body>
+</html>

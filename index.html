@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      No CSP meta tag here on purpose. Tauri injects its own policy from
+      tauri.conf.json and augments it with the IPC endpoints it needs
+      (`ipc:` / `http://ipc.localhost`). A meta-tag policy is NOT rewritten by
+      Tauri, so the Electron one that used to live here silently blocked every
+      `invoke()` call.
+    -->
+    <title>Vision Bridge</title>
+    <style>
+      /* No webfont requests: the app ships a native system type stack so it
+         renders identically offline and never waits on a network round-trip. */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        /*
+         * Deliberately NO background here.
+         *
+         * The capture overlay (and the result card / selection toolbar) are
+         * transparent windows: the dim you see is the real desktop showing
+         * through a 42%-alpha wash. An opaque body background turns that wash
+         * into a flat paper-coloured full-screen sheet, which is exactly the
+         * "Alt+A just goes fullscreen and shows no screenshot" bug.
+         *
+         * Each surface paints its own background: the main window's root div
+         * sets `backgroundColor: currentTheme.background`, the mask stays
+         * transparent, and the main window itself is not transparent at the
+         * OS level (matching the Electron build).
+         */
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+
+      /* Reduce motion */
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

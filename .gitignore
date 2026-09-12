@@ -1,0 +1,16 @@
+# Build artifacts
+node_modules/
+dist/
+src-tauri/target/
+size-report.json
+
+# Logs
+*.log
+logs/
+
+# Local history (superseded diagnostic scripts)
+tools/_history/
+
+# OS noise
+.DS_Store
+Thumbs.db

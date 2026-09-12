@@ -1,0 +1,220 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Design tokens — "Paper & Marker"
+   Warm paper neutrals + a single highlighter accent. Every surface in the app
+   is derived from these so theming stays coherent across the 4 palettes.
+--------------------------------------------------------------------------- */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui,
+    'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', 'JetBrains Mono',
+    Consolas, 'Courier New', monospace;
+
+  /* Motion — Apple-style: exponential ease-out, no linear/elastic on UI. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --dur-press: 100ms;
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 380ms;
+
+  --radius-card: 14px;
+  --radius-field: 9px;
+}
+
+@layer base {
+  ::selection {
+    background: rgba(198, 124, 27, 0.22);
+  }
+
+  /* Visible, non-ambiguous focus for keyboard users only. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring, #c67c1b);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Window chrome
+--------------------------------------------------------------------------- */
+.drag {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Ensure Electron transparency works */
+html,
+body,
+#root {
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: transparent !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Surfaces
+   Translucency is used with intent: only on layers that float above other
+   content (the capture overlay toolbar, the floating result card).
+--------------------------------------------------------------------------- */
+.glass {
+  background-color: var(--glass-bg, rgba(251, 250, 248, 0.72));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.55));
+}
+
+/* Solid fallback when the OS/browser asks for less transparency. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background-color: var(--glass-solid, #fbfaf8);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background-color: var(--glass-solid, #fbfaf8) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Type helpers
+--------------------------------------------------------------------------- */
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--kbd-bg, rgba(27, 25, 21, 0.05));
+  border: 1px solid var(--kbd-border, rgba(27, 25, 21, 0.1));
+  box-shadow: inset 0 -1px 0 var(--kbd-border, rgba(27, 25, 21, 0.1));
+  color: var(--kbd-fg, #5f594f);
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+   Scrollbars — thin, appears on hover
+--------------------------------------------------------------------------- */
+.custom-scrollbar {
+  scrollbar-width: thin;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb, rgba(131, 124, 113, 0.32));
+  background-clip: content-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover, rgba(131, 124, 113, 0.5));
+  background-clip: content-box;
+}
+
+/* ---------------------------------------------------------------------------
+   Motion primitives
+--------------------------------------------------------------------------- */
+@keyframes vb-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vb-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.965) translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vb-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.animate-rise {
+  animation: vb-rise var(--dur-base) var(--ease-out-quart) both;
+}
+
+.animate-pop {
+  animation: vb-pop var(--dur-base) var(--ease-out-quart) both;
+}
+
+/* Indeterminate progress: a sweeping marker stroke instead of a spinner. */
+.sweep-track {
+  position: relative;
+  overflow: hidden;
+}
+.sweep-track::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--sweep-color, #c67c1b),
+    transparent
+  );
+  animation: vb-sweep 1.15s var(--ease-in-out-quart) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep-track::after {
+    animation: none;
+  }
+  .animate-rise,
+  .animate-pop {
+    animation: none;
+  }
+}
