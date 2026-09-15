@@ -34,6 +34,32 @@ WebView2 错误页（深灰底 + Edge 蓝按钮），**而窗口标题看起来�
 | `verify-install.py` | 静默安装 → 校验文件/快捷方式/注册表 → 启动验证 |
 | `measure-size.py` | 生成 Electron vs Tauri 的体积对比表 |
 | `install-vs.py` | 安装 VS Build Tools（含代理变量去重，见下） |
+| `probe.py` | 通用探针：带环境变量启动 → 读窗口标题 / 日志 / 截图（`VB_DIAG`、`VB_PROBE_MODELS` 等） |
+| `mock-openai.py` | 在 127.0.0.1:1234 模拟 LM Studio 的 /v1/models，验证 HTTP 链路不依赖 LM Studio 状态 |
+| `minidump-peek.py` | 最小 MinIDump 解析：崩溃异常码 + 崩溃模块（WebView2 排障用） |
+
+## 两个运行期大坑（2026-09-15 排查实录）
+
+### 1. WebView2 升级到 Edge 153 后整窗白屏
+症状：窗口开着、标题正常，但页面白屏 / 卡在 `about:blank`，
+`initialization_script` 只执行第一段，所有 `setTimeout` 都不跑。
+诊断：`%LOCALAPPDATA%\com.visionbridge.desktop\EBWebView\Crashpad\reports\`
+出现崩溃 dump（`tools/minidump-peek.py` 可粗读）；CDP
+（`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223`）
+显示页面根本没导航。
+根因：Edge Runtime 自动升级后**旧用户数据目录（EBWebView）损坏**。
+修复：删除 `EBWebView` 目录即可恢复。注意 `taskkill /F` 强杀进程也会把
+profile 弄脏并复现同样症状——测试脚本要先清 profile 或优雅退出。
+
+### 2. 本地服务（LM Studio / llama.cpp）的请求被 CORS 杀死
+WebView2 里的 `fetch` 到 `127.0.0.1:1234` 是跨域，浏览器先发 OPTIONS 预检；
+本地服务器大多不回 CORS 头（LM Studio 日志表现为
+`Unexpected endpoint or method. (OPTIONS /v1/models). Returning 200 anyway`），
+预检失败 → 真正的 GET/POST 永远发不出去。
+修复：HTTP 全部改走 `tauri-plugin-http`（`src/lib/net.ts` 的 fetch 通过 IPC
+进 Rust，无 origin，永不发预检）。体积代价：exe 3.35 → 5.84 MB。
+另注意：reqwest 默认遵循 `HTTP_PROXY` 环境变量，v2rayN 用户本地请求也会被
+塞进代理——`NO_PROXY` 需包含 `127.0.0.1,localhost`。
 
 ## 环境坑（每条都真实踩过）
 

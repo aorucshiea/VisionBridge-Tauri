@@ -21,7 +21,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
-  callAI, callASR, callImageGen, callOCR, callTTS, cancelActiveRequest, cleanUrl, extractErrorMessage, listModels,
+  callAI, callASR, callImageGen, callOCR, callTTS, cancelActiveRequest, cleanUrl, extractErrorMessage, fetch, listModels,
   type AIServiceConfig, type AIRequestPayload,
 } from './ai'
 import { wireOf } from './providers'

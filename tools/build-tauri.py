@@ -27,7 +27,12 @@ msvc_env = import_module("msvc-env").build_env  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC_TAURI = ROOT / "src-tauri"
-CARGO = Path(os.path.expanduser("~")) / ".cargo" / "bin" / "cargo.exe"
+# Prefer the toolchain copy inside .rustup; `~/.cargo/bin` is a rustup shim
+# directory that has proven fragile (it went missing on this machine while
+# .rustup survived, so never hard-depend on it).
+CARGO = Path(r"C:\Users\zcxzx\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe")
+if not CARGO.is_file():
+    CARGO = Path(os.path.expanduser("~")) / ".cargo" / "bin" / "cargo.exe"
 NODE = Path(r"C:\Users\zcxzx\.workbuddy\binaries\node\versions\22.22.2-3\node.exe")
 TAURI_CLI = ROOT / "node_modules" / "@tauri-apps" / "cli" / "tauri.js"
 

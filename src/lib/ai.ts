@@ -14,6 +14,13 @@
  *  - gateway errors wrapped in HTTP 200 bodies are surfaced verbatim
  */
 import { wireOf } from './providers'
+// The plugin's fetch tunnels through IPC into Rust: no origin, therefore no
+// CORS preflight. Required because WebView2 blocks every renderer fetch to
+// local servers (LM Studio, llama.cpp) whose OPTIONS response lacks CORS
+// headers. See the Rust-side plugin registration.
+import { fetch } from '@tauri-apps/plugin-http'
+
+export { fetch }
 
 export interface AIRequestPayload {
   prompt: string

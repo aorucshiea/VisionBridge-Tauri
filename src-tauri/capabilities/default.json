@@ -13,6 +13,17 @@
     "core:window:allow-hide",
     "core:window:allow-show",
     "core:window:allow-set-focus",
-    "core:webview:allow-internal-toggle-devtools"
+    "core:webview:allow-internal-toggle-devtools",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://**" },
+        { "url": "http://*:*/*" },
+        { "url": "http://*/*" },
+        { "url": "https://**" },
+        { "url": "https://*:*/*" },
+        { "url": "https://*/*" }
+      ]
+    }
   ]
 }

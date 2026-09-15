@@ -125,6 +125,34 @@ window.setTimeout(function () {
     } else {
         ""
     };
+    // End-to-end CORS check against a local OpenAI-compatible server. The
+    // renderer's fetch used to die on the CORS preflight (WebView2 blocks the
+    // actual GET when the server answers OPTIONS without CORS headers), so this
+    // probe is the ground truth for "can the Tauri build talk to LM Studio".
+    let probeprobe = if std::env::var("VB_PROBE_MODELS").is_ok() && label == "main" {
+        r#"
+window.setTimeout(function () {
+  if (window.__VB_WINDOW__ !== "main") return;
+  var tries = 0;
+  var iv = setInterval(function () {
+    tries++;
+    if (window.ipcRenderer && window.ipcRenderer.listModels) {
+      clearInterval(iv);
+      var t0 = Date.now();
+      window.ipcRenderer.listModels({ provider: "lmstudio", apiKey: "", baseUrl: "http://127.0.0.1:1234" })
+        .then(function (m) {
+          vbReport("PROBE-OK models=" + (m || []).length + " in " + (Date.now() - t0) + "ms head=" + JSON.stringify((m || []).slice(0, 3)));
+        })
+        .catch(function (e) {
+          vbReport("PROBE-FAIL " + String((e && e.message) || e));
+        });
+    } else if (tries > 24) { clearInterval(iv); vbReport("PROBE-NO-IPC"); }
+  }, 250);
+}, 1200);
+"#
+    } else {
+        ""
+    };
     format!(
         r#"window.__VB_WINDOW__ = "{label}";
 window.__VB_ERRORS__ = [];
@@ -152,6 +180,7 @@ window.setTimeout(function () {{
   vbReport("{label} handshake " + where);
 }}, 3500);
 {captureprobe}
+{probeprobe}
 "#
     )
 }
@@ -983,6 +1012,12 @@ fn main() {
         // second clearing what the first had just captured — one of the reasons
         // selection translate looked flaky.
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        // HTTP stays out of the webview: WebView2 enforces CORS, and local
+        // OpenAI-compatible servers (LM Studio, llama.cpp) answer the OPTIONS
+        // preflight without CORS headers, so every renderer fetch to
+        // 127.0.0.1 died. The plugin's fetch runs through IPC into Rust, which
+        // has no origin, so no preflight is ever sent.
+        .plugin(tauri_plugin_http::init())
         .manage(Ctx {
             settings: Mutex::new(initial.clone()),
             mask_target: Mutex::new("main".into()),
