@@ -445,6 +445,52 @@ fn hide_result(app: AppHandle) {
     }
 }
 
+/// The result card reports its natural content height (CSS px); grow the
+/// frameless window to fit so long answers stay readable. Clamped to 70% of
+/// the primary work area, and the card is nudged back on-screen when the
+/// growth would push it past the bottom edge.
+#[tauri::command]
+fn resize_result(app: AppHandle, height: f64) -> Result<(), String> {
+    let Some(w) = app.get_webview_window(RESULT) else {
+        return Ok(());
+    };
+    let scale = w.scale_factor().unwrap_or(1.0);
+    let max_h = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.work_area().size.height as f64 / m.scale_factor())
+        .unwrap_or(1080.0)
+        * 0.7;
+    let max_h = max_h.min(640.0);
+    let h = (height.max(200.0)).min(max_h);
+
+    let old = w.outer_size().unwrap_or(PhysicalSize::new(380, 280));
+    let old_logical_h = old.height as f64 / scale;
+    if (old_logical_h - h).abs() < 1.0 {
+        return Ok(());
+    }
+    let _ = w.set_size(tauri::LogicalSize::new(380.0, h));
+
+    // Keep the card inside the monitor it currently sits on.
+    if let Ok(Some(monitor)) = w.current_monitor() {
+        let mp = monitor.position();
+        let ms = monitor.size();
+        let msf = monitor.scale_factor();
+        if let Ok(pos) = w.outer_position() {
+            let bottom = pos.y as f64 / msf + h;
+            let limit = (mp.y as f64 + ms.height as f64) / msf - 10.0;
+            if bottom > limit {
+                let _ = w.set_position(tauri::LogicalPosition::new(
+                    pos.x as f64 / msf,
+                    (limit - h).max(mp.y as f64 / msf),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn open_mask(app: AppHandle, state: tauri::State<'_, Ctx>, target: Option<String>) -> Result<(), String> {
     *state.mask_target.lock().unwrap() = if target.as_deref() == Some("result") {
@@ -1030,6 +1076,7 @@ fn main() {
             process_screenshot,
             show_result,
             hide_result,
+            resize_result,
             open_mask,
             hide_mask,
             close_mask,

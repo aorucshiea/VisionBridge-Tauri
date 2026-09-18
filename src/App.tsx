@@ -99,14 +99,6 @@ function CaptureMark({ color, size = 26 }: { color: string; size?: number }) {
 
 function App() {
   const [windowType] = useState<string>(() => {
-    // Rust injects this per window (see `init_script` in main.rs) and it is the
-    // authoritative source. The URL check below is only a fallback: Tauri's
-    // asset resolver drops the `?window=` query, so relying on it made every
-    // popup (mask, result card, selection toolbar) fall through to the main app
-    // and render the whole UI inside a 280×52 or 1920×1080 window.
-    const injected = (window as any).__VB_WINDOW__
-    if (typeof injected === 'string' && injected) return injected
-
     const params = new URLSearchParams(window.location.search)
     const windowParam = params.get('window')
     if (windowParam) return windowParam
@@ -114,7 +106,6 @@ function App() {
     const hash = window.location.hash
     if (hash.includes('mask')) return 'mask'
     if (hash.includes('result')) return 'result'
-    if (hash.includes('toolbar')) return 'selection-toolbar'
     return 'main'
   })
 
@@ -206,12 +197,8 @@ function App() {
   }, [])
 
   const processScreenshot = useCallback(async (region: { x: number; y: number; width: number; height: number }, actionId: string) => {
-    if (isProcessingRef.current) {
-      window.ipcRenderer.diag('processScreenshot skipped: already processing')
-      return
-    }
+    if (isProcessingRef.current) return
     isProcessingRef.current = true
-    window.ipcRenderer.diag(`processScreenshot start action=${actionId} region=${JSON.stringify(region)}`)
 
     if (window.currentAbortController) {
       window.currentAbortController.abort()
@@ -244,6 +231,8 @@ function App() {
         task,
         taskPrompts: taskPromptsOf(settings),
         promptOverride,
+        // The main window runs the chain; the floating result card renders it.
+        onDelta: (d) => { try { window.ipcRenderer.streamResultDelta?.(d) } catch { /* ignore */ } },
       })
 
       if (!abortController.signal.aborted) {
@@ -273,10 +262,6 @@ function App() {
   useEffect(() => {
     if (windowType === 'main' && window.ipcRenderer) {
       return window.ipcRenderer.onProcessScreenshot((data) => {
-        window.ipcRenderer.diag(
-          `onProcessScreenshot action=${data.action} region=${JSON.stringify(data.region)} ` +
-          `fn=${typeof processScreenshotRef.current}`,
-        )
         processScreenshotRef.current?.(data.region, data.action)
       })
     }

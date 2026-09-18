@@ -258,6 +258,8 @@ export interface ChainRunResult {
   content: string
   audioBase64: string | null
   images: string[]
+  /** Thinking text of the last text-producing node, when the model exposes it. */
+  reasoning: string
 }
 
 export interface ChainRunOptions {
@@ -267,13 +269,33 @@ export interface ChainRunOptions {
   taskPrompts: TaskPrompts
   /** Toolbar-action prompt — overrides node prompts for this run. */
   promptOverride?: string
+  /** Streaming callback: fires per delta for chat / chat-vision nodes. */
+  onDelta?: (d: { content?: string; reasoning?: string }) => void
+}
+
+/**
+ * One chat node run, streaming when the host IPC contract supports it
+ * (Electron preload / Tauri shim both expose callAIStream). Falls back to the
+ * plain non-streaming call on older contracts.
+ */
+async function runChatNode(
+  cfg: { provider: string; apiKey: string; baseUrl: string; model: string },
+  payload: { prompt: string; images?: string[] },
+  onDelta?: ChainRunOptions['onDelta'],
+): Promise<{ content: string; reasoning: string }> {
+  const ipc = window.ipcRenderer as any
+  if (typeof ipc.callAIStream === 'function') {
+    return await ipc.callAIStream(cfg, payload, onDelta)
+  }
+  return { content: await ipc.callAI(cfg, payload), reasoning: '' }
 }
 
 export async function runNodeChain(opts: ChainRunOptions): Promise<ChainRunResult> {
-  const { nodes, image, task, taskPrompts, promptOverride } = opts
+  const { nodes, image, task, taskPrompts, promptOverride, onDelta } = opts
   const ipc = window.ipcRenderer
 
   let lastText = ''
+  let lastReasoning = ''
   let lastAudio: string | null = null
   const producedImages: string[] = []
 
@@ -284,7 +306,9 @@ export async function runNodeChain(opts: ChainRunOptions): Promise<ChainRunResul
     switch (node.api) {
       case 'chat-vision': {
         if (!image) throw new Error('该节点需要图片输入：请把视觉类节点放在管道最前，或在它之前接入生图节点。')
-        lastText = await ipc.callAI(cfg, { prompt, images: [image] })
+        const r = await runChatNode(cfg, { prompt, images: [image] }, onDelta)
+        lastText = r.content
+        lastReasoning = r.reasoning || ''
         break
       }
       case 'ocr': {
@@ -292,10 +316,13 @@ export async function runNodeChain(opts: ChainRunOptions): Promise<ChainRunResul
         const text = await ipc.callOCR(cfg, image)
         if (!text || text.trim().length === 0) throw new Error('OCR 未能识别到选区内的文字。')
         lastText = text
+        lastReasoning = ''
         break
       }
       case 'chat': {
-        lastText = await ipc.callAI(cfg, { prompt })
+        const r = await runChatNode(cfg, { prompt }, onDelta)
+        lastText = r.content
+        lastReasoning = r.reasoning || ''
         break
       }
       case 'imagegen': {
@@ -329,5 +356,5 @@ export async function runNodeChain(opts: ChainRunOptions): Promise<ChainRunResul
 
   let content = lastText
   for (const src of producedImages) content += imageMarker(src)
-  return { content, audioBase64: lastAudio, images: producedImages }
+  return { content, audioBase64: lastAudio, images: producedImages, reasoning: lastReasoning }
 }

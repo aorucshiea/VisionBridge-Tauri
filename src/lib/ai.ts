@@ -14,6 +14,7 @@
  *  - gateway errors wrapped in HTTP 200 bodies are surfaced verbatim
  */
 import { wireOf } from './providers'
+import { createChatStreamParser } from './sse'
 // The plugin's fetch tunnels through IPC into Rust: no origin, therefore no
 // CORS preflight. Required because WebView2 blocks every renderer fetch to
 // local servers (LM Studio, llama.cpp) whose OPTIONS response lacks CORS
@@ -250,6 +251,142 @@ export async function callAI(config: AIServiceConfig, payload: AIRequestPayload)
       throw new Error('AI 请求超时。建议：1) 使用更小的模型 2) 启用GPU加速 3) 检查Ollama服务状态')
     }
     throw new Error(`${config.provider} AI Error: ${extractErrorMessage(e)}`)
+  } finally {
+    endRequest(signal)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Streaming chat (OpenAI SSE / Ollama NDJSON). Deltas go through `send` as
+// they arrive; the resolved value carries the full {content, reasoning}.
+// Falls back to one non-streaming request (still extracting reasoning_content)
+// when the server refuses to stream. Anthropic keeps its non-streaming shape
+// but surfaces thinking blocks.
+// ---------------------------------------------------------------------------
+export interface AIStreamResult {
+  content: string
+  reasoning: string
+}
+
+export type StreamSend = (delta: { content?: string; reasoning?: string }) => void
+
+export async function callAIStream(
+  config: AIServiceConfig,
+  payload: AIRequestPayload,
+  send?: StreamSend,
+): Promise<AIStreamResult> {
+  const { apiKey, baseUrl, model } = config
+  const wire = wireOf(config.provider)
+  const safeUrl = cleanUrl(baseUrl)
+  const trimmedModel = model ? model.trim() : ''
+
+  if (!trimmedModel) throw new Error('Model is required but not provided')
+
+  if (wire === 'anthropic') {
+    const content: any[] = []
+    payload.images?.forEach(img => {
+      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img } })
+    })
+    content.push({ type: 'text', text: payload.prompt })
+    const signal = beginRequest()
+    try {
+      const res = await fetch(`${safeUrl}/v1/messages`, {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: trimmedModel, max_tokens: 2048, messages: [{ role: 'user', content }] }),
+        signal,
+      })
+      const data = await res.json().catch(() => null)
+      const blocks: any[] = data?.content || []
+      const text = blocks.filter(b => b?.type === 'text').map(b => String(b.text || '')).join('')
+      const thinking = blocks.filter(b => b?.type === 'thinking').map(b => String(b.thinking || '')).join('')
+      if (thinking) send?.({ reasoning: thinking })
+      if (text) send?.({ content: text })
+      return { content: text || '(No text content returned from Claude)', reasoning: thinking }
+    } finally {
+      endRequest(signal)
+    }
+  }
+
+  const url = wire === 'ollama' ? `${safeUrl}/api/chat` : `${safeUrl}/v1/chat/completions`
+  let messages: any[]
+  if (payload.messages) {
+    messages = payload.messages
+  } else if (wire === 'ollama') {
+    messages = [{ role: 'user', content: payload.prompt, images: payload.images }]
+  } else if (payload.images && payload.images.length > 0) {
+    messages = [{
+      role: 'user',
+      content: [
+        { type: 'text', text: payload.prompt },
+        ...payload.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
+      ],
+    }]
+  } else {
+    messages = [{ role: 'user', content: payload.prompt }]
+  }
+
+  const body = { model: trimmedModel, messages, stream: true }
+  const headers: Record<string, string> = wire === 'ollama'
+    ? { 'Content-Type': 'application/json' }
+    : { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+
+  const signal = beginRequest()
+  let gotDelta = false
+  try {
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+    const parser = createChatStreamParser()
+    let content = ''
+    let reasoning = ''
+    const emit = (d: { content?: string; reasoning?: string }) => {
+      if (d.content) content += d.content
+      if (d.reasoning) reasoning += d.reasoning
+      gotDelta = true
+      try { send?.(d) } catch { /* listener errors must not kill the stream */ }
+    }
+
+    const reader = (res.body as ReadableStream<Uint8Array> | null)?.getReader?.()
+    if (reader) {
+      const decoder = new TextDecoder()
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        for (const d of parser.feed(decoder.decode(value, { stream: true }))) emit(d)
+      }
+      for (const d of parser.flush()) emit(d)
+    } else {
+      // Older plugin-http without a streaming body: parse the whole payload.
+      const text = await res.text()
+      for (const d of [...parser.feed(text), ...parser.flush()]) emit(d)
+    }
+
+    if (!content && !reasoning) throw new Error('流式响应为空')
+    return { content, reasoning }
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e
+    // Mid-stream failure: surface it instead of silently restarting.
+    if (gotDelta) throw e
+    // One non-streaming retry that still extracts the reasoning part.
+    try {
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...body, stream: false }), signal })
+      const data = await res.json().catch(() => null)
+      const msg = wire === 'ollama' ? data?.message : data?.choices?.[0]?.message
+      const text = typeof msg?.content === 'string' ? msg.content : ''
+      const reasoning =
+        typeof msg?.reasoning_content === 'string' ? msg.reasoning_content
+        : typeof msg?.reasoning === 'string' ? msg.reasoning
+        : typeof msg?.thinking === 'string' ? msg.thinking
+        : ''
+      if (!text || text.trim() === '') throw unwrapGatewayError(data, trimmedModel)
+      if (reasoning) send?.({ reasoning })
+      send?.({ content: text })
+      return { content: text, reasoning }
+    } catch (fallbackError: any) {
+      if (fallbackError?.name === 'AbortError') throw fallbackError
+      throw new Error(`${config.provider} AI Error: ${extractErrorMessage(fallbackError) || e?.message}`)
+    }
   } finally {
     endRequest(signal)
   }

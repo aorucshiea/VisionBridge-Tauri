@@ -18,10 +18,10 @@
  * Import for the side effect: `import './lib/ipc'`.
  */
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
-  callAI, callASR, callImageGen, callOCR, callTTS, cancelActiveRequest, cleanUrl, extractErrorMessage, fetch, listModels,
+  callAI, callAIStream, callASR, callImageGen, callOCR, callTTS, cancelActiveRequest, cleanUrl, extractErrorMessage, fetch, listModels,
   type AIServiceConfig, type AIRequestPayload,
 } from './ai'
 import { wireOf } from './providers'
@@ -227,6 +227,24 @@ async function chatWithAI(
   })
 }
 
+/** Streaming twin of chatWithAI — same routing, deltas via `onDelta`. */
+async function chatWithAIStream(
+  messages: Array<{ role: string; content: string }>,
+  settings: any,
+  onDelta?: (d: { content?: string; reasoning?: string }) => void,
+): Promise<{ content: string; reasoning: string }> {
+  const config: AIServiceConfig = settings?.mode === 'TEXT'
+    ? resolveTextRunner(settings).config
+    : settings?.mode === 'VLM'
+      ? { provider: settings.vlmProvider, apiKey: settings.vlmApiKey, baseUrl: settings.vlmBaseUrl, model: settings.vlmModel }
+      : resolveTextRunner(settings).config
+
+  return callAIStream(config, {
+    prompt: messages[messages.length - 1].content,
+    messages: messages.map(m => ({ role: m.role, content: m.content })),
+  }, onDelta)
+}
+
 // ---------------------------------------------------------------------------
 // Test connection — port of the Electron `test-connection` handler.
 // ---------------------------------------------------------------------------
@@ -383,6 +401,8 @@ const api = {
     subscribe('process-screenshot', cb),
   onCancelRequests: (cb: () => void) => subscribe('cancel-requests', () => cb()),
   onDisplayContent: (cb: (content: string) => void) => subscribe('display-content', cb),
+  onDisplayDelta: (cb: (delta: { content?: string; reasoning?: string }) => void) =>
+    subscribe('display-delta', cb),
   onSelectionText: (cb: (payload: { text: string; actions: Array<{ id: string; label: string }> }) => void) =>
     subscribe('selection-text', cb),
   onAppendScreenshot: (cb: (data: any) => void) => subscribe('append-screenshot', cb),
@@ -406,12 +426,23 @@ const api = {
   showResult: (data: { x: number; y: number; content: string }) =>
     invoke('show_result', { x: data.x, y: data.y, content: data.content }),
   hideResult: () => invoke('hide_result'),
+  /** Forward pipeline deltas (main window) to the result card. */
+  streamResultDelta: (delta: { content?: string; reasoning?: string }) => {
+    void emit('display-delta', delta)
+  },
+  /** Report the result card's natural content height so Rust can resize its window. */
+  resizeResult: (height: number) => invoke('resize_result', { height }),
   openMask: (target?: 'main' | 'result') => invoke('open_mask', { target: target ?? 'main' }),
   hideMask: () => invoke('hide_mask'),
   closeMask: () => invoke('close_mask'),
 
   // ---- AI (renderer-side HTTP) ------------------------------------------
   callAI: (config: AIServiceConfig, payload: AIRequestPayload) => callAI(config, payload),
+  callAIStream: (
+    config: AIServiceConfig,
+    payload: AIRequestPayload,
+    onDelta?: (d: { content?: string; reasoning?: string }) => void,
+  ) => callAIStream(config, payload, onDelta),
   callOCR: (config: AIServiceConfig, imageBase64: string) => callOCR(config, imageBase64),
   callImageGen: (config: AIServiceConfig, prompt: string) => callImageGen(config, prompt),
   callTTS: (config: AIServiceConfig & { voice?: string }, text: string) => callTTS(config, text),
@@ -420,6 +451,13 @@ const api = {
   chatWithAI: async (messages: Array<{ role: string; content: string }>) => {
     const settings = settingsCache || (await getSettings())
     return chatWithAI(messages, settings)
+  },
+  chatWithAIStream: async (
+    messages: Array<{ role: string; content: string }>,
+    onDelta?: (d: { content?: string; reasoning?: string }) => void,
+  ) => {
+    const settings = settingsCache || (await getSettings())
+    return chatWithAIStream(messages, settings, onDelta)
   },
   testConnection: (config: any, _type: 'vlm' | 'ocr' | 'llm' | 'vlm2' | 'llm2') => testConnection(config),
   listModels: (config: { provider: string; apiKey: string; baseUrl: string; model?: string }) =>

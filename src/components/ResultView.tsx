@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Check, Copy, Image as ImageIcon, MessageSquare, X } from 'lucide-react'
+import { ArrowUp, Check, ChevronRight, Copy, Image as ImageIcon, MessageSquare, X } from 'lucide-react'
 import { useTranslation } from '../hooks/useTranslation'
 import { captureRegion } from '../lib/screenshot'
 import { getActiveNodes, runNodeChain, taskPromptsOf, resolveAction, IMAGE_MARKER_RE } from '../lib/pipeline'
@@ -9,6 +9,8 @@ import type { ThemeConfig } from '../types'
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Model thinking (reasoning) that produced this message, when available. */
+  reasoning?: string
 }
 
 /**
@@ -84,6 +86,8 @@ const ResultView: React.FC = () => {
   const { t } = useTranslation()
   const [theme, setTheme] = useState<ThemeConfig>(themes.light)
   const [content, setContent] = useState<string>('')
+  const [reasoning, setReasoning] = useState<string>('')
+  const [showThinking, setShowThinking] = useState<boolean>(true)
   const [isProcessing, setIsProcessing] = useState<boolean>(true)
   const [isChatMode, setIsChatMode] = useState<boolean>(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -92,6 +96,7 @@ const ResultView: React.FC = () => {
   const [saveAsHistory, setSaveAsHistory] = useState<boolean>(false)
   const [copied, setCopied] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const copyTimer = useRef<number | null>(null)
 
   useEffect(() => {
@@ -110,11 +115,41 @@ const ResultView: React.FC = () => {
     if (!ipc) { setIsProcessing(false); return }
     return ipc.onDisplayContent((data) => {
       setContent(data)
+      setReasoning('')
+      setShowThinking(true)
       setIsProcessing(false)
       setIsChatMode(false)
       setMessages([])
     })
   }, [])
+
+  // Live deltas: the main window (or this window in chat mode) streams the
+  // answer while the pipeline is still running.
+  useEffect(() => {
+    const ipc = window.ipcRenderer as any
+    if (!ipc || typeof ipc.onDisplayDelta !== 'function') return
+    return ipc.onDisplayDelta((d: { content?: string; reasoning?: string }) => {
+      setIsProcessing(false)
+      setIsChatMode(false)
+      if (d.reasoning) setReasoning(prev => prev + d.reasoning)
+      if (d.content) setContent(prev => prev + d.content)
+    })
+  }, [])
+
+  // Grow the frameless window to fit the content (clamped host-side) so long
+  // answers stay readable instead of being squeezed into a tiny viewport.
+  useEffect(() => {
+    const ipc = window.ipcRenderer as any
+    if (!ipc || typeof ipc.resizeResult !== 'function') return
+    const raf = window.requestAnimationFrame(() => {
+      const body = bodyRef.current
+      if (!body) return
+      const natural = 36 + body.scrollHeight // title bar (h-9) + content
+      const maxH = Math.min(Math.round((window.screen?.height || 1080) * 0.7), 640)
+      ipc.resizeResult(Math.max(200, Math.min(natural + 2, maxH))).catch(() => {})
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [content, reasoning, messages, isProcessing, isChatMode])
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -146,12 +181,27 @@ const ResultView: React.FC = () => {
       if (!nodes || nodes.length === 0) throw new Error(t('pipelineNeedsNode'))
 
       const { task, promptOverride } = resolveAction(actionId, currentSettings)
-      const { content: result } = await runNodeChain({
+      // Stream into the last user bubble while the chain runs.
+      let streamed = ''
+      const onDelta = (d: { content?: string; reasoning?: string }) => {
+        if (d.content) streamed += d.content
+        setMessages(prev => {
+          const newMessages = [...prev]
+          const lastMessage = newMessages[newMessages.length - 1]
+          if (lastMessage && lastMessage.role === 'user') {
+            lastMessage.content = `[${t('screenshot')}: ${region.width}x${region.height}]\n${streamed}`
+            if (d.reasoning) lastMessage.reasoning = (lastMessage.reasoning || '') + d.reasoning
+          }
+          return [...newMessages]
+        })
+      }
+      const { content: result, reasoning } = await runNodeChain({
         nodes,
         image: croppedBase64,
         task,
         taskPrompts: taskPromptsOf(currentSettings),
         promptOverride,
+        onDelta,
       })
 
       setMessages(prev => {
@@ -159,6 +209,7 @@ const ResultView: React.FC = () => {
         const lastMessage = newMessages[newMessages.length - 1]
         if (lastMessage && lastMessage.role === 'user') {
           lastMessage.content = `[${t('screenshot')}: ${region.width}x${region.height}]\n${result}`
+          lastMessage.reasoning = reasoning || lastMessage.reasoning
         }
         return newMessages
       })
@@ -211,8 +262,30 @@ const ResultView: React.FC = () => {
     setMessages(newMessages)
 
     try {
-      const response = await window.ipcRenderer.chatWithAI(newMessages)
-      setMessages([...newMessages, { role: 'assistant', content: response }])
+      const ipc = window.ipcRenderer as any
+      let response: { content: string; reasoning: string }
+      if (typeof ipc.chatWithAIStream === 'function') {
+        // Stream into a placeholder assistant bubble.
+        let streamed = ''
+        let streamedReasoning = ''
+        setMessages([...newMessages, { role: 'assistant', content: '…' }])
+        response = await ipc.chatWithAIStream(newMessages, (d: { content?: string; reasoning?: string }) => {
+          if (d.content) streamed += d.content
+          if (d.reasoning) streamedReasoning += d.reasoning
+          setMessages(prev => {
+            const next = [...prev]
+            const last = next[next.length - 1]
+            if (last && last.role === 'assistant') {
+              last.content = streamed || '…'
+              last.reasoning = streamedReasoning || undefined
+            }
+            return [...next]
+          })
+        })
+      } else {
+        response = { content: await window.ipcRenderer.chatWithAI(newMessages), reasoning: '' }
+      }
+      setMessages([...newMessages, { role: 'assistant', content: response.content, reasoning: response.reasoning || undefined }])
     } catch (error: any) {
       setMessages([...newMessages, { role: 'assistant', content: `Error: ${error.message}` }])
     } finally {
@@ -257,17 +330,18 @@ const ResultView: React.FC = () => {
         boxShadow: '0 1px 0 rgba(255,255,255,0.35) inset, 0 10px 24px -8px rgba(0,0,0,0.28), 0 32px 64px -28px rgba(0,0,0,0.4)',
       }}
     >
-      {/* Draggable title bar */}
+      {/* Draggable title bar (Electron: -webkit-app-region; Tauri: data-tauri-drag-region) */}
       <div
+        data-tauri-drag-region
         className="h-9 shrink-0 flex items-center gap-2 pl-2.5 pr-1.5 select-none drag cursor-move"
         style={{ borderBottom: `1px solid ${theme.hairline}` }}
       >
         <Mark color={theme.primary} />
-        <span className="eyebrow truncate" style={{ color: theme.textSecondary }}>
+        <span data-tauri-drag-region className="eyebrow truncate" style={{ color: theme.textSecondary }}>
           {t('title')}
         </span>
 
-        <div className="flex-1" />
+        <div data-tauri-drag-region className="flex-1 self-stretch" />
 
         <div className="flex items-center gap-0.5 no-drag">
           {isChatMode && (
@@ -296,7 +370,7 @@ const ResultView: React.FC = () => {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto custom-scrollbar no-drag">
+      <div ref={bodyRef} className="flex-1 overflow-auto custom-scrollbar no-drag">
         {isChatMode ? (
           <div className="h-full flex flex-col">
             <div className="flex-1 px-3 py-3 space-y-2.5">
@@ -309,12 +383,36 @@ const ResultView: React.FC = () => {
                       : { backgroundColor: tint(theme.text, theme.card, 0.05), color: theme.text, border: `1px solid ${theme.hairline}` }}
                   >
                     {msg.role === 'user'
-                      ? <span className="whitespace-pre-wrap break-words">{msg.content}</span>
-                      : <RichContent text={msg.content} />}
+                      ? (
+                        <>
+                          <span className="whitespace-pre-wrap break-words">{msg.content}</span>
+                          {msg.reasoning && msg.reasoning.trim() !== '' && (
+                            <div
+                              className="mt-1.5 pt-1.5 text-[11px] leading-[1.6] whitespace-pre-wrap break-words"
+                              style={{ color: theme.textSecondary, borderTop: `1px dashed ${theme.hairline}` }}
+                            >
+                              {msg.reasoning}
+                            </div>
+                          )}
+                        </>
+                      )
+                      : (
+                        <>
+                          {msg.reasoning && msg.reasoning.trim() !== '' && (
+                            <div
+                              className="mb-1.5 pb-1.5 text-[11px] leading-[1.6] whitespace-pre-wrap break-words"
+                              style={{ color: theme.textSecondary, borderBottom: `1px dashed ${theme.hairline}` }}
+                            >
+                              {msg.reasoning}
+                            </div>
+                          )}
+                          <RichContent text={msg.content} />
+                        </>
+                      )}
                   </div>
                 </div>
               ))}
-              {isSending && (
+              {isSending && messages[messages.length - 1]?.role !== 'assistant' && (
                 <div className="flex justify-start">
                   <div className="w-24 h-7 rounded-[11px] border sweep-track" style={{ backgroundColor: tint(theme.text, theme.card, 0.05), borderColor: theme.hairline }} />
                 </div>
@@ -389,6 +487,35 @@ const ResultView: React.FC = () => {
             className="px-3.5 py-3 text-[13px] leading-[1.72] break-words selection:bg-primary-200/60"
             style={{ color: theme.text }}
           >
+            {reasoning.trim() !== '' && (
+              <div
+                className="mb-2.5 rounded-[10px] border"
+                style={{ backgroundColor: tint(theme.text, theme.card, 0.04), borderColor: theme.hairline }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowThinking(!showThinking)}
+                  className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium no-drag"
+                  style={{ color: theme.textSecondary }}
+                  aria-expanded={showThinking}
+                >
+                  <ChevronRight
+                    size={11}
+                    className="transition-transform duration-fast ease-out-quart"
+                    style={{ transform: showThinking ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                  />
+                  {t('thinkingProcess')}
+                </button>
+                {showThinking && (
+                  <div
+                    className="px-2.5 pb-2 text-[11.5px] leading-[1.65] whitespace-pre-wrap break-words"
+                    style={{ color: theme.textMuted }}
+                  >
+                    {reasoning}
+                  </div>
+                )}
+              </div>
+            )}
             <RichContent text={content} />
           </div>
         )}

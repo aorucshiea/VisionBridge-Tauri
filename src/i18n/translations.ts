@@ -139,6 +139,7 @@ export interface TranslationDict {
   saveAsHistory: string
   messageCount: string
   analyzing: string
+  thinkingProcess: string
   collapse: string
   expand: string
   dragHint: string
@@ -333,6 +334,7 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     saveAsHistory: '保存为历史',
     messageCount: '{n} 条消息',
     analyzing: '正在分析...',
+    thinkingProcess: '思考过程',
     collapse: '收起',
     expand: '展开',
     dragHint: '拖动选择区域 • 按 ESC 退出',
@@ -525,6 +527,7 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     saveAsHistory: 'Save as History',
     messageCount: '{n} messages',
     analyzing: 'Analyzing...',
+    thinkingProcess: 'Thought process',
     collapse: 'Collapse',
     expand: 'Expand',
     dragHint: 'Drag to select area • Press ESC to exit',
