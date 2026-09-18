@@ -321,7 +321,7 @@ fn hide_to_tray(app: &AppHandle) {
 }
 
 /// Shared result-card positioning: keep the card on-screen near a point.
-fn show_result_window(app: &AppHandle, x: f64, y: f64, content: String) -> Result<(), String> {
+fn show_result_window(app: &AppHandle, x: f64, y: f64, content: String, processing: bool) -> Result<(), String> {
     let win = ensure_result(app)?;
     let size = win.outer_size().unwrap_or(PhysicalSize::new(380, 280));
 
@@ -354,9 +354,12 @@ fn show_result_window(app: &AppHandle, x: f64, y: f64, content: String) -> Resul
         .map_err(|e| { eprintln!("[result] set_position failed: {e}"); e.to_string() })?;
     win.show()
         .map_err(|e| { eprintln!("[result] show failed: {e}"); e.to_string() })?;
-    win.emit("display-content", content)
+    // "processing" shows the sweep animation instead of treating the
+    // placeholder text as final content (which killed the skeleton).
+    let event = if processing { "display-processing" } else { "display-content" };
+    win.emit(event, content)
         .map_err(|e| { eprintln!("[result] emit failed: {e}"); e.to_string() })?;
-    eprintln!("[result] shown at ({fx:.0},{fy:.0}) content={chars} chars");
+    eprintln!("[result] shown at ({fx:.0},{fy:.0}) content={chars} chars processing={processing}");
     Ok(())
 }
 
@@ -433,9 +436,9 @@ fn process_screenshot(app: AppHandle, state: tauri::State<'_, Ctx>, region: Valu
 /// never created, it was stuck. Async commands run off the main thread, so the
 /// loop stays free.
 #[tauri::command]
-async fn show_result(app: AppHandle, x: f64, y: f64, content: String) -> Result<(), String> {
+async fn show_result(app: AppHandle, x: f64, y: f64, content: String, processing: Option<bool>) -> Result<(), String> {
     eprintln!("[result] show_result invoked at ({x},{y}) len={}", content.chars().count());
-    show_result_window(&app, x, y, content)
+    show_result_window(&app, x, y, content, processing.unwrap_or(false))
 }
 
 #[tauri::command]

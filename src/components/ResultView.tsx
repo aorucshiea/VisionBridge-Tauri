@@ -123,6 +123,22 @@ const ResultView: React.FC = () => {
     })
   }, [])
 
+  // "Working" signal: the card was just opened for a fresh task (screenshot,
+  // Alt+T, toolbar action). Reset stale state and show the sweep animation
+  // until the first delta or the final content arrives.
+  useEffect(() => {
+    const ipc = window.ipcRenderer as any
+    if (!ipc || typeof ipc.onDisplayProcessing !== 'function') return
+    return ipc.onDisplayProcessing(() => {
+      setContent('')
+      setReasoning('')
+      setShowThinking(true)
+      setIsProcessing(true)
+      setIsChatMode(false)
+      setMessages([])
+    })
+  }, [])
+
   // Live deltas: the main window (or this window in chat mode) streams the
   // answer while the pipeline is still running.
   useEffect(() => {

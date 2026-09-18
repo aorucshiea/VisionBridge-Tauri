@@ -360,7 +360,7 @@ async function runSelectionAction(payload: { action: string; text: string; x: nu
   const settings = settingsCache || (await getSettings())
   const working = settings?.language === 'en' ? 'Translating...' : '翻译中...'
   try {
-    await invoke('show_result', { x: x + 12, y: y + 12, content: working })
+    await invoke('show_result', { x: x + 12, y: y + 12, content: working, processing: true })
 
     let prompt: string
     if (action === 'explain') {
@@ -401,6 +401,8 @@ const api = {
     subscribe('process-screenshot', cb),
   onCancelRequests: (cb: () => void) => subscribe('cancel-requests', () => cb()),
   onDisplayContent: (cb: (content: string) => void) => subscribe('display-content', cb),
+  /** Result card enters the "working" animation state (no content yet). */
+  onDisplayProcessing: (cb: () => void) => subscribe('display-processing', () => cb()),
   onDisplayDelta: (cb: (delta: { content?: string; reasoning?: string }) => void) =>
     subscribe('display-delta', cb),
   onSelectionText: (cb: (payload: { text: string; actions: Array<{ id: string; label: string }> }) => void) =>
@@ -423,8 +425,8 @@ const api = {
   sendProcessScreenshot: (data: { region: any; action: string }) => {
     void invoke('process_screenshot', { region: data.region, action: data.action })
   },
-  showResult: (data: { x: number; y: number; content: string }) =>
-    invoke('show_result', { x: data.x, y: data.y, content: data.content }),
+  showResult: (data: { x: number; y: number; content: string; processing?: boolean }) =>
+    invoke('show_result', { x: data.x, y: data.y, content: data.content, processing: data.processing === true }),
   hideResult: () => invoke('hide_result'),
   /** Forward pipeline deltas (main window) to the result card. */
   streamResultDelta: (delta: { content?: string; reasoning?: string }) => {

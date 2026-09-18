@@ -208,7 +208,7 @@ function App() {
 
     // Cancel any in-flight AI request in the main process
     window.ipcRenderer.cancelAiRequests()
-    window.ipcRenderer.showResult({ x: region.x + region.width + 10, y: region.y, content: t('processing') })
+    window.ipcRenderer.showResult({ x: region.x + region.width + 10, y: region.y, content: t('processing'), processing: true })
 
     try {
       if (settings.mode === 'TEXT') {
