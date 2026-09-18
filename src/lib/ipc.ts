@@ -237,6 +237,7 @@ const TEST_I18N: Record<string, Record<string, (a?: string, b?: string) => strin
     modelNotFound: (model, list) => `模型 ${model} 未找到，可用模型: ${list}`,
     unsupported: (provider) => `不支持的 provider: ${provider}`,
     failed: (msg) => `连接失败: ${msg}`,
+    modelLoadTimeout: (model) => `服务器已连通，但模型 ${model} 加载超时（大模型冷加载可能需要 1-3 分钟）。请先在 LM Studio 中手动加载模型，或稍后重试`,
   },
   en: {
     connected: () => 'Connection successful',
@@ -244,6 +245,7 @@ const TEST_I18N: Record<string, Record<string, (a?: string, b?: string) => strin
     modelNotFound: (model, list) => `Model ${model} not found. Available models: ${list}`,
     unsupported: (provider) => `Unsupported provider: ${provider}`,
     failed: (msg) => `Connection failed: ${msg}`,
+    modelLoadTimeout: (model) => `Server reachable, but model ${model} timed out while loading (cold start can take minutes). Load the model manually in LM Studio first, then retry`,
   },
 }
 
