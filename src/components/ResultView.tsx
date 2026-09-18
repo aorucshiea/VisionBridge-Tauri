@@ -114,8 +114,11 @@ const ResultView: React.FC = () => {
     const ipc = window.ipcRenderer
     if (!ipc) { setIsProcessing(false); return }
     return ipc.onDisplayContent((data) => {
+      // Final content replaces the streamed text. Deliberately keep the
+      // reasoning accumulated from live deltas — the payload carries no
+      // reasoning, and clearing it here made the thinking block vanish the
+      // moment generation finished.
       setContent(data)
-      setReasoning('')
       setShowThinking(true)
       setIsProcessing(false)
       setIsChatMode(false)
@@ -339,7 +342,7 @@ const ResultView: React.FC = () => {
 
   return (
     <div
-      className="w-full h-full glass rounded-[14px] flex flex-col overflow-hidden animate-pop"
+      className="fixed inset-0 flex flex-col glass rounded-[14px] overflow-hidden animate-pop"
       style={{
         ...vars,
         color: theme.text,
@@ -385,11 +388,12 @@ const ResultView: React.FC = () => {
         </div>
       </div>
 
-      {/* Body */}
-      <div ref={bodyRef} className="flex-1 overflow-auto custom-scrollbar no-drag">
+      {/* Body — min-h-0 lets flex-1 actually shrink so overflow-auto scrolls
+          (without it the content stretches the pane and no scrollbar appears). */}
+      <div ref={bodyRef} className="flex-1 min-h-0 overflow-auto custom-scrollbar no-drag">
         {isChatMode ? (
           <div className="h-full flex flex-col">
-            <div className="flex-1 px-3 py-3 space-y-2.5">
+            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar px-3 py-3 space-y-2.5">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
