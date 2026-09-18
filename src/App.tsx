@@ -99,6 +99,15 @@ function CaptureMark({ color, size = 26 }: { color: string; size?: number }) {
 
 function App() {
   const [windowType] = useState<string>(() => {
+    // Tauri injects the window identity per window (init_script in main.rs)
+    // and it is authoritative there: Tauri's asset resolver drops the
+    // `?window=` query, so relying on the URL alone makes every popup (mask,
+    // result card, selection toolbar) fall through to the main app and render
+    // the whole UI inside a fullscreen window. Electron passes the identity
+    // via the URL; `__VB_WINDOW__` is simply undefined in that harness.
+    const injected = (window as any).__VB_WINDOW__
+    if (typeof injected === 'string' && injected) return injected
+
     const params = new URLSearchParams(window.location.search)
     const windowParam = params.get('window')
     if (windowParam) return windowParam
@@ -106,6 +115,7 @@ function App() {
     const hash = window.location.hash
     if (hash.includes('mask')) return 'mask'
     if (hash.includes('result')) return 'result'
+    if (hash.includes('toolbar')) return 'selection-toolbar'
     return 'main'
   })
 
