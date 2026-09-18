@@ -135,6 +135,9 @@ export interface TranslationDict {
   closeResult: string
   continueScreenshot: string
   inputPlaceholder: string
+  askFollowup: string
+  attachImage: string
+  answerWithImage: string
   saveChat: string
   saveAsHistory: string
   messageCount: string
@@ -330,6 +333,9 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     closeResult: '关闭',
     continueScreenshot: '继续截图',
     inputPlaceholder: '输入问题...',
+    askFollowup: '继续提问',
+    attachImage: '添加图片',
+    answerWithImage: '请查看附带的图片并回答。',
     saveChat: '保存对话',
     saveAsHistory: '保存为历史',
     messageCount: '{n} 条消息',
@@ -523,6 +529,9 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     closeResult: 'Close',
     continueScreenshot: 'Continue Screenshot',
     inputPlaceholder: 'Type a question...',
+    askFollowup: 'Ask a follow-up',
+    attachImage: 'Attach image',
+    answerWithImage: 'Please look at the attached image(s) and answer.',
     saveChat: 'Save Chat',
     saveAsHistory: 'Save as History',
     messageCount: '{n} messages',

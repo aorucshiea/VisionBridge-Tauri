@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Check, ChevronRight, Copy, Image as ImageIcon, MessageSquare, X } from 'lucide-react'
+import { ArrowUp, Check, ChevronRight, Copy, Image as ImageIcon, ImagePlus, MessageSquare, X } from 'lucide-react'
 import { useTranslation } from '../hooks/useTranslation'
 import { captureRegion } from '../lib/screenshot'
 import { getActiveNodes, runNodeChain, taskPromptsOf, resolveAction, IMAGE_MARKER_RE } from '../lib/pipeline'
@@ -11,6 +11,8 @@ interface ChatMessage {
   content: string
   /** Model thinking (reasoning) that produced this message, when available. */
   reasoning?: string
+  /** Attached images (data URLs) sent with a user message. */
+  images?: string[]
 }
 
 /**
@@ -93,6 +95,8 @@ const ResultView: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputText, setInputText] = useState<string>('')
   const [isSending, setIsSending] = useState<boolean>(false)
+  /** Local images picked for the next chat message (data URLs). */
+  const [pendingImages, setPendingImages] = useState<string[]>([])
   const [saveAsHistory, setSaveAsHistory] = useState<boolean>(false)
   const [copied, setCopied] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -270,14 +274,44 @@ const ResultView: React.FC = () => {
     }
   }
 
-  const handleSend = async () => {
-    if (!inputText.trim() || isSending) return
+  /** Open the chat input, seeded with the current result as context. */
+  const enterChatFromResult = () => {
+    setMessages(content.trim()
+      ? [{ role: 'assistant', content, reasoning: reasoning || undefined }]
+      : [])
+    setPendingImages([])
+    setIsProcessing(false)
+    setIsChatMode(true)
+  }
 
-    const userMessage = inputText.trim()
+  /** Read picked local images as data URLs for the next chat message. */
+  const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    e.target.value = '' // allow re-picking the same file later
+    const room = 4 - pendingImages.length
+    if (room <= 0 || files.length === 0) return
+    Promise.all(files.slice(0, room).map(file => new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(file)
+    }))).then((picked) => {
+      const ok = picked.filter((s): s is string => !!s)
+      if (ok.length) setPendingImages(prev => [...prev, ...ok])
+    })
+  }
+
+  const handleSend = async () => {
+    if (isSending) return
+    const text = inputText.trim()
+    if (!text && pendingImages.length === 0) return
+    const images = pendingImages.length ? [...pendingImages] : undefined
+    const userMessage = text || (images ? t('answerWithImage') : '')
     setInputText('')
+    setPendingImages([])
     setIsSending(true)
 
-    const newMessages = [...messages, { role: 'user' as const, content: userMessage }]
+    const newMessages = [...messages, { role: 'user' as const, content: userMessage, images }]
     setMessages(newMessages)
 
     try {
@@ -288,21 +322,25 @@ const ResultView: React.FC = () => {
         let streamed = ''
         let streamedReasoning = ''
         setMessages([...newMessages, { role: 'assistant', content: '…' }])
-        response = await ipc.chatWithAIStream(newMessages, (d: { content?: string; reasoning?: string }) => {
-          if (d.content) streamed += d.content
-          if (d.reasoning) streamedReasoning += d.reasoning
-          setMessages(prev => {
-            const next = [...prev]
-            const last = next[next.length - 1]
-            if (last && last.role === 'assistant') {
-              last.content = streamed || '…'
-              last.reasoning = streamedReasoning || undefined
-            }
-            return [...next]
-          })
-        })
+        response = await ipc.chatWithAIStream(
+          newMessages.map(m => ({ role: m.role, content: m.content })),
+          (d: { content?: string; reasoning?: string }) => {
+            if (d.content) streamed += d.content
+            if (d.reasoning) streamedReasoning += d.reasoning
+            setMessages(prev => {
+              const next = [...prev]
+              const last = next[next.length - 1]
+              if (last && last.role === 'assistant') {
+                last.content = streamed || '…'
+                last.reasoning = streamedReasoning || undefined
+              }
+              return [...next]
+            })
+          },
+          images,
+        )
       } else {
-        response = { content: await window.ipcRenderer.chatWithAI(newMessages), reasoning: '' }
+        response = { content: await window.ipcRenderer.chatWithAI(newMessages.map(m => ({ role: m.role, content: m.content })), images), reasoning: '' }
       }
       setMessages([...newMessages, { role: 'assistant', content: response.content, reasoning: response.reasoning || undefined }])
     } catch (error: any) {
@@ -405,6 +443,19 @@ const ResultView: React.FC = () => {
                     {msg.role === 'user'
                       ? (
                         <>
+                          {msg.images && msg.images.length > 0 && (
+                            <div className="flex gap-1.5 flex-wrap mb-1.5">
+                              {msg.images.map((src, i) => (
+                                <img
+                                  key={i}
+                                  src={src}
+                                  alt=""
+                                  className="w-20 h-20 object-cover rounded-[8px] border"
+                                  style={{ borderColor: theme.hairline }}
+                                />
+                              ))}
+                            </div>
+                          )}
                           <span className="whitespace-pre-wrap break-words">{msg.content}</span>
                           {msg.reasoning && msg.reasoning.trim() !== '' && (
                             <div
@@ -441,6 +492,24 @@ const ResultView: React.FC = () => {
             </div>
 
             <div className="shrink-0 px-3 py-2.5 space-y-2" style={{ borderTop: `1px solid ${theme.hairline}` }}>
+              {pendingImages.length > 0 && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {pendingImages.map((src, i) => (
+                    <div key={i} className="relative w-12 h-12 rounded-[8px] overflow-hidden border" style={{ borderColor: theme.hairline }}>
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))}
+                        aria-label="remove image"
+                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff' }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -453,6 +522,15 @@ const ResultView: React.FC = () => {
                 >
                   <ImageIcon size={14} />
                 </button>
+                <label
+                  title={t('attachImage')}
+                  aria-label={t('attachImage')}
+                  className="w-8 h-8 shrink-0 flex items-center justify-center rounded-[9px] border transition-[transform,background-color] duration-fast ease-out-quart active:scale-[0.94] cursor-pointer"
+                  style={{ backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.textSecondary }}
+                >
+                  <ImagePlus size={14} />
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
+                </label>
                 <input
                   type="text"
                   value={inputText}
@@ -469,7 +547,7 @@ const ResultView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSend}
-                  disabled={isSending || !inputText.trim()}
+                  disabled={isSending || (!inputText.trim() && pendingImages.length === 0)}
                   aria-label={t('inputPlaceholder')}
                   className="w-8 h-8 shrink-0 flex items-center justify-center rounded-[9px] transition-[transform,filter] duration-fast ease-out-quart hover:brightness-110 active:scale-[0.94] disabled:opacity-40"
                   style={{ backgroundColor: theme.primary, color: theme.onPrimary }}
@@ -540,6 +618,22 @@ const ResultView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Floating follow-up entry: opens the chat input seeded with this
+          result as context. Sits in the card's bottom-right corner. */}
+      {!isChatMode && !isProcessing && content.trim() !== '' && (
+        <button
+          type="button"
+          onClick={enterChatFromResult}
+          title={t('askFollowup')}
+          aria-label={t('askFollowup')}
+          className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full text-[11.5px] font-medium transition-[transform,filter] duration-fast ease-out-quart hover:brightness-105 active:scale-[0.96] no-drag"
+          style={{ backgroundColor: theme.primary, color: theme.onPrimary, boxShadow: `0 6px 18px -6px ${theme.primary}aa` }}
+        >
+          <MessageSquare size={13} />
+          {t('askFollowup')}
+        </button>
+      )}
     </div>
   )
 }

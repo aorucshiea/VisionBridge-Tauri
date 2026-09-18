@@ -214,6 +214,7 @@ function resolveTextRunner(settings: any): {
 async function chatWithAI(
   messages: Array<{ role: string; content: string }>,
   settings: any,
+  images?: string[],
 ): Promise<string> {
   const config: AIServiceConfig = settings?.mode === 'TEXT'
     ? resolveTextRunner(settings).config
@@ -224,6 +225,7 @@ async function chatWithAI(
   return callAI(config, {
     prompt: messages[messages.length - 1].content,
     messages: messages.map(m => ({ role: m.role, content: m.content })),
+    images: images && images.length ? images : undefined,
   })
 }
 
@@ -232,6 +234,7 @@ async function chatWithAIStream(
   messages: Array<{ role: string; content: string }>,
   settings: any,
   onDelta?: (d: { content?: string; reasoning?: string }) => void,
+  images?: string[],
 ): Promise<{ content: string; reasoning: string }> {
   const config: AIServiceConfig = settings?.mode === 'TEXT'
     ? resolveTextRunner(settings).config
@@ -242,6 +245,7 @@ async function chatWithAIStream(
   return callAIStream(config, {
     prompt: messages[messages.length - 1].content,
     messages: messages.map(m => ({ role: m.role, content: m.content })),
+    images: images && images.length ? images : undefined,
   }, onDelta)
 }
 
@@ -450,16 +454,17 @@ const api = {
   callTTS: (config: AIServiceConfig & { voice?: string }, text: string) => callTTS(config, text),
   callASR: (config: AIServiceConfig, audioBase64: string) => callASR(config, audioBase64),
   cancelAiRequests: async () => { cancelActiveRequest() },
-  chatWithAI: async (messages: Array<{ role: string; content: string }>) => {
+  chatWithAI: async (messages: Array<{ role: string; content: string }>, images?: string[]) => {
     const settings = settingsCache || (await getSettings())
-    return chatWithAI(messages, settings)
+    return chatWithAI(messages, settings, images)
   },
   chatWithAIStream: async (
     messages: Array<{ role: string; content: string }>,
     onDelta?: (d: { content?: string; reasoning?: string }) => void,
+    images?: string[],
   ) => {
     const settings = settingsCache || (await getSettings())
-    return chatWithAIStream(messages, settings, onDelta)
+    return chatWithAIStream(messages, settings, onDelta, images)
   },
   testConnection: (config: any, _type: 'vlm' | 'ocr' | 'llm' | 'vlm2' | 'llm2') => testConnection(config),
   listModels: (config: { provider: string; apiKey: string; baseUrl: string; model?: string }) =>
