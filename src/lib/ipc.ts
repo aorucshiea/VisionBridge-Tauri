@@ -276,11 +276,43 @@ async function testConnection(config: any): Promise<{ success: boolean; availabl
       : { model, messages: [{ role: 'user', content: 'OK' }], max_tokens: 1, stream: false }
     const url = wire === 'anthropic' ? `${base}/v1/messages` : `${base}/v1/chat/completions`
 
-    const res = await fetch(url, {
-      method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return { success: true, available: true, message: i18n.connected() }
+    // Two-stage test (LM Studio JIT loading friendly):
+    //  1. GET /v1/models — never triggers a model load, proves the server is reachable
+    //  2. POST /v1/chat/completions — real generation test; may trigger a cold model
+    //     load (a 35B Q4 can take minutes), hence the generous timeout.
+    if (wire !== 'anthropic') {
+      try {
+        const list = await fetch(`${base}/v1/models`, {
+          headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(8000),
+        })
+        if (list.ok) {
+          const data = await list.json()
+          const ids: string[] = (data?.data || [])
+            .map((m: any) => String(m.id || m.name || ''))
+            .filter(Boolean)
+          if (ids.length > 0 && model && !ids.some((id) => id === model || model.startsWith(id) || id.startsWith(model))) {
+            return { success: true, available: false, message: i18n.modelNotFound(model, ids.join(', ')) }
+          }
+        }
+        // 非 2xx：服务器可达但 models 接口异常 → 继续走补全测试
+      } catch (e: any) {
+        return { success: false, available: false, message: i18n.failed(extractErrorMessage(e)) }
+      }
+    }
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(180000),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return { success: true, available: true, message: i18n.connected() }
+    } catch (e: any) {
+      if (e?.name === 'TimeoutError') {
+        // Client gave up while the server was (most likely) still cold-loading the model.
+        return { success: false, available: true, message: i18n.modelLoadTimeout(model) }
+      }
+      throw e
+    }
   } catch (e: any) {
     return { success: false, available: false, message: i18n.failed(extractErrorMessage(e)) }
   }
