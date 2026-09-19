@@ -102,6 +102,10 @@ export interface AppSettings {
   enableTextSelection: boolean
   /** How selected text is picked up: automatic on selection, or hotkey only. */
   selectionTrigger: 'auto' | 'hotkey'
+  // System assistant (小V)
+  assistantName: string
+  soulPrompt: string
+
   theme: ThemeName
   language: Language
   trayIconPath: string

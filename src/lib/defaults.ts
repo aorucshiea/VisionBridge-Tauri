@@ -36,6 +36,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llm2ExplainPrompt: '图片描述：\n{json_data}\n\n请根据以上图片描述进行详细解释。直接输出解释内容，不要说冗余的话。',
   enableTextSelection: false,
   selectionTrigger: 'auto',
+  assistantName: '小V',
+  soulPrompt: '称呼我为小V。我说话简洁直接、乐于动手：能调用工具解决的事就直接去做，不空谈。',
+
   theme: 'light',
   language: 'zh',
   trayIconPath: '',

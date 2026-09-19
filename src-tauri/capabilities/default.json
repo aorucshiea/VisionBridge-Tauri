@@ -2,7 +2,13 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions the app's own windows need. Tauri v2 denies every plugin command to a webview unless a capability grants it — without this file `event.listen` (used by all five IPC event channels) fails with `Command plugin:event|listen not allowed by ACL`, which silently breaks text selection, screenshot routing and result display.",
-  "windows": ["main", "mask", "result", "selection-toolbar"],
+  "windows": [
+    "main",
+    "mask",
+    "result",
+    "selection-toolbar",
+    "xiao-v"
+  ],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -18,12 +24,24 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "http://**" },
-        { "url": "http://*:*/*" },
-        { "url": "http://*/*" },
-        { "url": "https://**" },
-        { "url": "https://*:*/*" },
-        { "url": "https://*/*" }
+        {
+          "url": "http://**"
+        },
+        {
+          "url": "http://*:*/*"
+        },
+        {
+          "url": "http://*/*"
+        },
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "https://*:*/*"
+        },
+        {
+          "url": "https://*/*"
+        }
       ]
     }
   ]

@@ -428,6 +428,7 @@ const api = {
 
   // ---- screenshot / windows ---------------------------------------------
   captureScreen: () => invoke<string>('capture_screen'),
+  openXiaoV: () => invoke<void>('open_xiao_v'),
   sendProcessScreenshot: (data: { region: any; action: string }) => {
     void invoke('process_screenshot', { region: data.region, action: data.action })
   },

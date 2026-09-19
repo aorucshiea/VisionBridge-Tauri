@@ -17,6 +17,8 @@ import { Sessions } from './plugins/sessions'
 import { Tools } from './plugins/tools'
 import { BuiltinTools } from './plugins/builtin-tools'
 import { Agents } from './plugins/agents'
+import { Knowledge } from './plugins/knowledge'
+import { PipelineTools } from './plugins/pipeline-tools'
 
 let root: Context | null = null
 
@@ -28,6 +30,8 @@ export function startHarness(): Context {
   ctx.plugin(Llm)
   ctx.plugin(Capture)
   ctx.plugin(BuiltinTools)
+  ctx.plugin(PipelineTools)
+  ctx.plugin(Knowledge)
   ctx.plugin(Agents)
   ctx.emit('harness/ready')
 

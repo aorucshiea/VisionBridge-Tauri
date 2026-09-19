@@ -46,15 +46,19 @@ export class Agents extends Service implements AgentsService {
     userText: string
     images?: string[]
     maxSteps?: number
+    systemPreamble?: string
     onEvent?: (e: AgentEvent) => void
   }): Promise<{ content: string; steps: number }> {
     const { userText, images, onEvent } = opts
     const maxSteps = Math.max(1, opts.maxSteps ?? 8)
+    const system = opts.systemPreamble ? `${SYSTEM_PROMPT}
+
+${opts.systemPreamble}` : SYSTEM_PROMPT
     const settings = await (window.ipcRenderer as any).getSettings()
     const config = resolveAgentConfig(settings)
 
     const messages: LlmChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: system },
       { role: 'user', content: userText, images: images?.length ? images : undefined },
     ]
     const tools = this.ctx.tools.list()

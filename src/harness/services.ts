@@ -124,6 +124,8 @@ export interface AgentsService {
     userText: string
     images?: string[]
     maxSteps?: number
+    /** Extra persona/memory context appended after the base system prompt. */
+    systemPreamble?: string
     onEvent?: (e: AgentEvent) => void
   }): Promise<{ content: string; steps: number }>
 }
@@ -206,6 +208,22 @@ export interface SessionsService {
   clearCalls(): void
 }
 
+// ---------------------------------------------------------------------------
+// ctx.knowledge — memory facts now; linked notes + graph in the next stage.
+// ---------------------------------------------------------------------------
+
+export interface MemoryFact {
+  id: string
+  text: string
+  ts: number
+}
+
+export interface KnowledgeService {
+  remember(text: string): void
+  forget(id: string): void
+  listMemory(): MemoryFact[]
+}
+
 // Typed seams for the cordis context: `ctx.llm` / `ctx.capture` / `ctx.sessions` / `ctx.tools` / `ctx.agents`.
 declare module '@cordisjs/core' {
   interface Context {
@@ -214,5 +232,6 @@ declare module '@cordisjs/core' {
     sessions: SessionsService
     tools: ToolsService
     agents: AgentsService
+    knowledge: KnowledgeService
   }
 }

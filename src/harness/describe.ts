@@ -8,6 +8,8 @@
  */
 import { harness } from './index'
 import { Agents } from './plugins/agents'
+import { Knowledge } from './plugins/knowledge'
+import { PipelineTools } from './plugins/pipeline-tools'
 import { Capture } from './plugins/capture'
 import { Llm } from './plugins/llm'
 import { Sessions } from './plugins/sessions'
@@ -15,7 +17,7 @@ import { Tools } from './plugins/tools'
 import { BuiltinTools } from './plugins/builtin-tools'
 import type { TranslationDict } from '../i18n'
 
-export type ServiceKey = 'llm' | 'capture' | 'sessions' | 'tools' | 'agents'
+export type ServiceKey = 'llm' | 'capture' | 'sessions' | 'tools' | 'agents' | 'knowledge'
 
 export interface ServiceInfo {
   key: ServiceKey
@@ -88,6 +90,12 @@ export function describeHarness(): HarnessMap {
       labelKey: 'systemSvcAgents',
       live: typeof ctx.agents?.run === 'function',
     },
+    {
+      key: 'knowledge',
+      labelKey: 'systemSvcKnowledge',
+      live: typeof ctx.knowledge?.listMemory === 'function',
+      detail: String(ctx.knowledge.listMemory().length),
+    },
   ]
 
   const plugins: PluginInfo[] = [
@@ -117,8 +125,18 @@ export function describeHarness(): HarnessMap {
       descKey: 'systemPlugBuiltinDesc',
     },
     {
+      id: 'pipeline-tools', labelKey: 'systemPlugPipelineTools', kind: 'builtin',
+      live: registry.has(PipelineTools), provides: [], dependsOn: ['tools', 'llm', 'sessions'],
+      descKey: 'systemPlugPipelineToolsDesc',
+    },
+    {
+      id: 'knowledge', labelKey: 'systemPlugKnowledge', kind: 'builtin',
+      live: registry.has(Knowledge), provides: ['knowledge'], dependsOn: ['tools', 'sessions'],
+      descKey: 'systemPlugKnowledgeDesc',
+    },
+    {
       id: 'agents', labelKey: 'systemPlugAgents', kind: 'builtin',
-      live: registry.has(Agents), provides: ['agents'], dependsOn: ['tools', 'llm', 'sessions'],
+      live: registry.has(Agents), provides: ['agents'], dependsOn: ['tools', 'llm', 'knowledge', 'sessions'],
       descKey: 'systemPlugAgentsDesc',
     },
     {
@@ -134,6 +152,7 @@ export function describeHarness(): HarnessMap {
     { id: 'result', labelKey: 'systemConsResult', uses: ['llm', 'agents', 'sessions'] },
     { id: 'probe', labelKey: 'systemConsProbe', uses: ['llm'] },
     { id: 'records', labelKey: 'systemConsRecords', uses: ['sessions'] },
+    { id: 'xv', labelKey: 'systemConsXv', uses: ['agents', 'tools', 'knowledge', 'sessions'] },
   ]
 
   const extensions: ExtensionInfo[] = [

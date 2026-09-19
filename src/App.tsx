@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Settings as SettingsIcon, ScanLine, MessageSquare, Save, Check, Minus, Square, X as CloseIcon, Cpu, Workflow, SlidersHorizontal, FolderOpen, History, Boxes } from 'lucide-react'
+import { Settings as SettingsIcon, ScanLine, MessageSquare, Save, Check, Minus, Square, X as CloseIcon, Cpu, Workflow, SlidersHorizontal, FolderOpen, History, Boxes, Bot } from 'lucide-react'
 import ScreenshotMask from './components/ScreenshotMask'
 import ResultView from './components/ResultView'
 import TextChat from './components/TextChat'
@@ -13,6 +13,7 @@ import ValidationCard from './components/settings/ValidationCard'
 import SavedConfigs from './components/settings/SavedConfigs'
 import RecordsSection from './components/settings/RecordsSection'
 import SystemMapSection from './components/settings/SystemMapSection'
+import XiaoVView from './components/XiaoVView'
 import AppearanceSection from './components/settings/AppearanceSection'
 import ToolbarActionsSection from './components/settings/ToolbarActionsSection'
 import { translations, type TranslationDict } from './i18n'
@@ -211,9 +212,9 @@ function App() {
   }, [settingsSection, settings.mode, settings.vlmModel, settings.ocrModel, settings.llmModel, settings.vlm2Model, settings.llm2Model])
 
   useEffect(() => {
-    if (windowType !== 'main') {
+    if (windowType !== 'main' && windowType !== 'xiao-v') {
       document.body.style.background = 'transparent'
-      document.documentElement.style.background = 'transparent'
+      document.documentElement.style.background = windowType === 'xiao-v' ? '' : 'transparent'
     }
 
     if (window.ipcRenderer) {
@@ -494,6 +495,7 @@ function App() {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
 
+  if (windowType === 'xiao-v') return <XiaoVView />
   if (windowType === 'result') return <ResultView />
   if (windowType === 'selection-toolbar') return (
     <div className="w-full h-full bg-transparent overflow-hidden no-drag">
@@ -620,6 +622,17 @@ function App() {
               </button>
             )
           })}
+          <button
+            role="tab"
+            aria-selected={false}
+            onClick={() => { try { window.ipcRenderer.openXiaoV?.() } catch { /* ignore */ } }}
+            title={settings?.assistantName || '小V'}
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-[8px] text-[11px] font-semibold transition-[background-color,color,box-shadow] duration-base ease-out-quart active:scale-[0.98]"
+            style={{ backgroundColor: 'transparent', color: currentTheme.accent }}
+          >
+            <Bot size={13} />
+            <span>{settings?.assistantName || '小V'}</span>
+          </button>
         </div>
 
         <div className="flex-1" />

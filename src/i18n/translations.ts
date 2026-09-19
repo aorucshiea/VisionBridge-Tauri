@@ -88,6 +88,12 @@ export interface TranslationDict {
   systemPlugAgentsDesc: string
   systemExtSkills: string
   systemExtMcp: string
+  systemSvcKnowledge: string
+  systemPlugKnowledge: string
+  systemPlugKnowledgeDesc: string
+  systemPlugPipelineTools: string
+  systemPlugPipelineToolsDesc: string
+  systemConsXv: string
   systemCore: string
   systemCoreSub: string
   systemCoreDesc: string
@@ -150,6 +156,17 @@ export interface TranslationDict {
   agentModeTip: string
   agentThinking: string
   agentToolCalling: string
+  xvDefaultName: string
+  xvGreeting: string
+  xvSubtitle: string
+  xvPersona: string
+  xvName: string
+  xvSoul: string
+  xvMemory: string
+  xvMemoryEmpty: string
+  xvMemoryPlaceholder: string
+  xvPlaceholder: string
+  xvAgentOn: string
   appearance: string
   theme: string
   language: string
@@ -385,6 +402,12 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     systemExtProfiles: 'Profile 叠加',
     systemExtSkills: 'Skills 技能',
     systemExtMcp: 'MCP 连接器',
+    systemSvcKnowledge: '知识服务',
+    systemPlugKnowledge: '知识插件',
+    systemPlugKnowledgeDesc: '长期记忆与知识库：remember/forget 工具写入记忆事实，之后注入每轮对话；图谱笔记在下一阶段。',
+    systemPlugPipelineTools: '管道工具',
+    systemPlugPipelineToolsDesc: '按已配置的管道注册工具：VLM 分析、OCR+LLM、VLM+LLM 描述、TEXT 问答，各用各的模型。',
+    systemConsXv: '小V 窗口',
     systemProvides: '提供服务',
     systemDepends: '依赖',
     systemUses: '使用服务',
@@ -423,6 +446,17 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     agentModeTip: 'Agent 模式：模型可连续调用截屏、OCR、屏幕问答等工具',
     agentThinking: 'Agent 思考中…',
     agentToolCalling: '调用工具',
+    xvDefaultName: '小V',
+    xvGreeting: '在的。我能调用所有管道的工具、看到你的调用记录，也会记住重要的事。有什么要做的？',
+    xvSubtitle: '系统助手',
+    xvPersona: '人设设置',
+    xvName: '名字',
+    xvSoul: '灵魂',
+    xvMemory: '记忆',
+    xvMemoryEmpty: '暂无长期记忆',
+    xvMemoryPlaceholder: '添加一条记忆…',
+    xvPlaceholder: '让小V 做点什么…',
+    xvAgentOn: 'Agent 模式',
     appearance: '外观设置',
     theme: '主题',
     language: '语言',
@@ -656,6 +690,12 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     systemExtProfiles: 'Profile overlays',
     systemExtSkills: 'Skills',
     systemExtMcp: 'MCP connector',
+    systemSvcKnowledge: 'Knowledge service',
+    systemPlugKnowledge: 'Knowledge plugin',
+    systemPlugKnowledgeDesc: 'Long-term memory & knowledge base: remember/forget tools persist facts that are injected into every turn; linked notes arrive next stage.',
+    systemPlugPipelineTools: 'Pipeline tools',
+    systemPlugPipelineToolsDesc: 'One tool per configured pipeline: VLM analyze, OCR+LLM, VLM+LLM describe, TEXT chat — each on its own models.',
+    systemConsXv: 'XiaoV window',
     systemProvides: 'Provides',
     systemDepends: 'Depends on',
     systemUses: 'Uses',
@@ -694,6 +734,17 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     agentModeTip: 'Agent mode: the model can chain screen capture, OCR and screen Q&A tools',
     agentThinking: 'Agent thinking…',
     agentToolCalling: 'Calling tool',
+    xvDefaultName: 'XiaoV',
+    xvGreeting: "at your service. I can call every pipeline's tools, see your records, and remember what matters. What shall we do?",
+    xvSubtitle: 'System assistant',
+    xvPersona: 'Persona',
+    xvName: 'Name',
+    xvSoul: 'Soul',
+    xvMemory: 'Memory',
+    xvMemoryEmpty: 'No long-term memories yet',
+    xvMemoryPlaceholder: 'Add a memory…',
+    xvPlaceholder: 'Ask XiaoV to do something…',
+    xvAgentOn: 'Agent mode',
     appearance: 'Appearance',
     theme: 'Theme',
     language: 'Language',

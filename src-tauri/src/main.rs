@@ -64,6 +64,7 @@ const RESULT: &str = "result";
 /// the 280×52 popup rendered the entire UI — title bar, tabs and all — with the
 /// tab labels squeezed onto two lines.
 const TOOLBAR: &str = "selection-toolbar";
+const XIAO_V: &str = "xiao-v";
 
 fn url_for(_label: &str) -> WebviewUrl {
     // Bare path on purpose. The window's identity travels via the
@@ -556,6 +557,29 @@ async fn selection_toolbar_action(app: AppHandle, state: tauri::State<'_, Ctx>, 
             json!({ "action": action, "text": text, "x": x, "y": y }),
         );
     }
+    Ok(())
+}
+
+/// 小V — the persistent system-assistant window. Idempotent: first call
+/// builds it, later calls show + focus the existing one.
+#[tauri::command]
+async fn open_xiao_v(app: AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window(XIAO_V) {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(&app, XIAO_V, url_for(XIAO_V))
+        .initialization_script(&init_script(XIAO_V))
+        .title("Vision Bridge · 小V")
+        .inner_size(430.0, 660.0)
+        .min_inner_size(360.0, 480.0)
+        .decorations(false)
+        .transparent(false)
+        .resizable(true)
+        .visible(true)
+        .build()
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1092,6 +1116,7 @@ fn main() {
             get_settings,
             save_settings,
             capture_screen,
+            open_xiao_v,
             process_screenshot,
             show_result,
             hide_result,
