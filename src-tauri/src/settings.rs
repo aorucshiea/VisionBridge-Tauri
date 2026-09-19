@@ -31,6 +31,7 @@ fn defaults() -> Value {
         "vlmExplainPrompt": "Analyze the image and explain the content in detail in Chinese. Output ONLY the explanation, nothing else.",
         "mode": "VLM",
         "assistantName": "小V",
+        "xvModelConfig": null,
         "soulPrompt": "称呼我为小V。我说话简洁直接、乐于动手：能调用工具解决的事就直接去做，不空谈。",
         "ocrProvider": "ollama",
         "ocrApiKey": "",

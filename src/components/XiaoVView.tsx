@@ -3,6 +3,8 @@ import { ArrowUp, Bot, Bookmark, Check, ChevronRight, Copy, Cog, Plus, X } from 
 import { useTranslation } from '../hooks/useTranslation'
 import { harness } from '../harness'
 import { themes, tint } from '../theme/themes'
+import { presetOf } from '../lib/providers'
+import ModelProbe from './ModelProbe'
 import type { ThemeConfig } from '../types'
 import type { TFunc } from './settings/ui'
 
@@ -46,6 +48,9 @@ const XiaoVView: React.FC = () => {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editSoul, setEditSoul] = useState('')
+  const [editModel, setEditModel] = useState<{ provider: string; apiKey: string; baseUrl: string; model: string }>({ provider: 'lmstudio', apiKey: '', baseUrl: 'http://127.0.0.1:1234', model: '' })
+  const [modelCustom, setModelCustom] = useState(false)
+  const [showProbe, setShowProbe] = useState(false)
   const [copied, setCopied] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const copyTimer = useRef<number | null>(null)
@@ -78,7 +83,13 @@ const XiaoVView: React.FC = () => {
   }
 
   const savePersona = async () => {
-    const next = { ...(settings || {}), assistantName: editName.trim() || name, soulPrompt: editSoul }
+    const customOk = modelCustom && editModel.model.trim() !== ''
+    const next = {
+      ...(settings || {}),
+      assistantName: editName.trim() || name,
+      soulPrompt: editSoul,
+      xvModelConfig: customOk ? { ...editModel, model: editModel.model.trim() } : null,
+    }
     setSettings(next)
     setEditing(false)
     try { await window.ipcRenderer.saveSettings(next) } catch { /* keep local state */ }
@@ -97,6 +108,7 @@ const XiaoVView: React.FC = () => {
         userText: text,
         maxSteps: 10,
         systemPreamble: buildPreamble(),
+        modelConfig: settings?.xvModelConfig?.model ? settings.xvModelConfig : undefined,
         onEvent: (e) => {
           setMessages(prev => {
             const next = [...prev]
@@ -156,7 +168,15 @@ const XiaoVView: React.FC = () => {
         <div className="flex items-center gap-0.5 no-drag">
           <button
             type="button"
-            onClick={() => { setEditing(!editing); setEditName(name); setEditSoul(soul) }}
+            onClick={() => {
+  setEditing(!editing)
+  setEditName(name)
+  setEditSoul(soul)
+  const xv = settings?.xvModelConfig || null
+  setModelCustom(!!xv?.model)
+  if (xv) setEditModel(xv)
+  else setEditModel({ provider: 'lmstudio', apiKey: '', baseUrl: 'http://127.0.0.1:1234', model: '' })
+}}
             aria-label={t('xvPersona')}
             className="w-7 h-7 flex items-center justify-center rounded-[8px] transition-colors"
             style={{ color: editing ? theme.primary : theme.textSecondary }}
@@ -197,6 +217,81 @@ const XiaoVView: React.FC = () => {
               style={{ borderColor: theme.inputBorder, color: theme.text }}
             />
           </div>
+
+          {/* model */}
+          <div className="space-y-2 rounded-[10px] border px-2.5 py-2" style={{ borderColor: theme.hairline }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold" style={{ color: theme.textMuted }}>{t('xvModel')}</span>
+              <div className="flex gap-1">
+                {([['auto', t('xvModelAuto')], ['custom', t('xvModelCustom')]] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setModelCustom(mode === 'custom')}
+                    className="h-6 px-2 rounded-md text-[10.5px] font-medium border transition-colors"
+                    style={(mode === 'custom') === modelCustom
+                      ? { backgroundColor: tint(theme.primary, theme.card, 0.14), borderColor: tint(theme.primary, theme.card, 0.3), color: theme.primary }
+                      : { backgroundColor: 'transparent', borderColor: 'transparent', color: theme.textSecondary }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {modelCustom ? (
+              <div className="space-y-1.5">
+                <div className="flex gap-1.5">
+                  <select
+                    value={editModel.provider}
+                    onChange={(e) => {
+                      const preset = presetOf(e.target.value)
+                      setEditModel(m => ({ ...m, provider: e.target.value, baseUrl: preset?.baseUrl || m.baseUrl }))
+                    }}
+                    className="flex-1 h-8 px-2 rounded-[8px] border bg-transparent outline-none text-[11.5px]"
+                    style={{ borderColor: theme.inputBorder, color: theme.text }}
+                  >
+                    {['lmstudio', 'ollama', 'openai', 'custom', 'siliconflow', 'deepseek', 'dashscope', 'moonshot', 'zhipu', 'anthropic'].map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={editModel.baseUrl}
+                    onChange={(e) => setEditModel(m => ({ ...m, baseUrl: e.target.value }))}
+                    placeholder="Base URL"
+                    className="flex-1 h-8 px-2 rounded-[8px] border bg-transparent outline-none text-[11px] font-mono"
+                    style={{ borderColor: theme.inputBorder, color: theme.text }}
+                  />
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    value={editModel.model}
+                    onChange={(e) => setEditModel(m => ({ ...m, model: e.target.value }))}
+                    placeholder={t('modelName')}
+                    className="flex-1 h-8 px-2 rounded-[8px] border bg-transparent outline-none text-[11px] font-mono"
+                    style={{ borderColor: theme.inputBorder, color: theme.text }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowProbe(true)}
+                    className="h-8 px-2.5 rounded-[8px] text-[11px] font-semibold border shrink-0"
+                    style={{ borderColor: tint(theme.primary, theme.card, 0.3), color: theme.primary }}
+                  >
+                    {t('xvModelPick')}
+                  </button>
+                </div>
+                <input
+                  value={editModel.apiKey}
+                  onChange={(e) => setEditModel(m => ({ ...m, apiKey: e.target.value }))}
+                  placeholder="API Key（可留空）"
+                  className="w-full h-8 px-2 rounded-[8px] border bg-transparent outline-none text-[11px]"
+                  style={{ borderColor: theme.inputBorder, color: theme.text }}
+                />
+              </div>
+            ) : (
+              <p className="text-[10.5px] leading-relaxed" style={{ color: theme.textMuted }}>{t('xvModelAutoHint')}</p>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setEditing(false)} className="h-7 px-2.5 rounded-[7px] text-[11px] border" style={{ borderColor: theme.hairline, color: theme.textMuted }}>
               {t('cancel')}
@@ -289,6 +384,18 @@ const XiaoVView: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {showProbe && (
+          <ModelProbe
+            config={{ provider: editModel.provider, apiKey: editModel.apiKey, baseUrl: editModel.baseUrl }}
+            mdIds={presetOf(editModel.provider)?.mdIds || []}
+            current={editModel.model}
+            onPick={(m) => { setEditModel(m2 => ({ ...m2, model: m })); setShowProbe(false) }}
+            onClose={() => setShowProbe(false)}
+            theme={theme}
+            t={t}
+          />
+        )}
 
         {/* memory drawer */}
         {showMemory && (

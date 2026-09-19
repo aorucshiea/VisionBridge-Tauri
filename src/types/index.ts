@@ -105,6 +105,8 @@ export interface AppSettings {
   // System assistant (小V)
   assistantName: string
   soulPrompt: string
+  /** Explicit brain model for 小V; null = follow the settings fallback chain. */
+  xvModelConfig: { provider: string; apiKey: string; baseUrl: string; model: string } | null
 
   theme: ThemeName
   language: Language

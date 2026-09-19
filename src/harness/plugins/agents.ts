@@ -47,6 +47,7 @@ export class Agents extends Service implements AgentsService {
     images?: string[]
     maxSteps?: number
     systemPreamble?: string
+    modelConfig?: { provider: string; apiKey: string; baseUrl: string; model: string }
     onEvent?: (e: AgentEvent) => void
   }): Promise<{ content: string; steps: number }> {
     const { userText, images, onEvent } = opts
@@ -55,7 +56,9 @@ export class Agents extends Service implements AgentsService {
 
 ${opts.systemPreamble}` : SYSTEM_PROMPT
     const settings = await (window.ipcRenderer as any).getSettings()
-    const config = resolveAgentConfig(settings)
+    const config = opts.modelConfig?.model?.trim()
+      ? { ...opts.modelConfig }
+      : resolveAgentConfig(settings)
 
     const messages: LlmChatMessage[] = [
       { role: 'system', content: system },

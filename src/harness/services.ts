@@ -126,6 +126,8 @@ export interface AgentsService {
     maxSteps?: number
     /** Extra persona/memory context appended after the base system prompt. */
     systemPreamble?: string
+    /** Explicit model for this run; falls back to the settings chain when absent. */
+    modelConfig?: LlmChatConfig
     onEvent?: (e: AgentEvent) => void
   }): Promise<{ content: string; steps: number }>
 }
