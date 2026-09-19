@@ -80,9 +80,26 @@ export class Agents extends Service implements AgentsService {
         const ok = !result.content.includes('"error"')
         onEvent?.({ type: 'tool-result', name: call.name, ok, ms: Date.now() - t0, preview })
         messages.push({ role: 'tool', content: result.content, toolCallId: call.id })
+        // Attachment pattern: images a tool produced enter the next request as
+        // a user message, so a multimodal model sees them directly.
+        if (result.images?.length) {
+          messages.push({ role: 'user', content: '（工具返回的截图，请直接观察图片）', images: result.images })
+        }
       }
     }
 
-    return { content: lastContent || `已达到最大步数（${maxSteps}），模型仍在调用工具。`, steps: maxSteps }
+    // Step budget exhausted with the model still calling tools: force a final
+    // answer from whatever the tools already produced, so the turn still ends
+    // with something useful instead of a dead "out of steps" message.
+    try {
+      messages.push({
+        role: 'user',
+        content: '不要再调用工具。请基于以上工具返回的信息，直接给出最终中文回答。',
+      })
+      const r = await this.ctx.llm.chatTools(config, { messages, tools: [] })
+      return { content: r.content || lastContent || '（未能生成最终回答）', steps: maxSteps }
+    } catch {
+      return { content: lastContent || '已达到最大步数，且强制收尾失败。', steps: maxSteps }
+    }
   }
 }

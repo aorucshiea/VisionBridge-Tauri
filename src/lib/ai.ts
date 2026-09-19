@@ -57,6 +57,12 @@ export function cancelActiveRequest(): void {
   activeController = null
 }
 
+function imageBase64(img: string): string {
+  // Sources vary: canvas toDataURL gives a clean prefix-stripped payload here,
+  // but the Rust GDI capture returns a full data URL. Normalise to bare base64.
+  return img.replace(/^data:image\/\w+;base64,/, '').replace(/\s+/g, '')
+}
+
 function abortError(): Error {
   const err = new Error('Request aborted')
   err.name = 'AbortError'
@@ -203,7 +209,7 @@ export async function callAI(config: AIServiceConfig, payload: AIRequestPayload)
   const signal = beginRequest()
   try {
     if (wire === 'ollama') {
-      const messages = payload.messages || [{ role: 'user', content: payload.prompt, images: payload.images }]
+      const messages = payload.messages || [{ role: 'user', content: payload.prompt, images: payload.images?.map(imageBase64) }]
       const r = await postJson(`${safeUrl}/api/chat`, { model: trimmedModel, messages, stream: false }, { signal, timeout: 300000 })
       const content = r.data?.message?.content
       if (!content || String(content).trim() === '') throw unwrapGatewayError(r.data, trimmedModel)
@@ -215,7 +221,7 @@ export async function callAI(config: AIServiceConfig, payload: AIRequestPayload)
       if (payload.images && payload.images.length > 0 && !payload.messages) {
         messages[0].content = [
           { type: 'text', text: payload.prompt },
-          ...payload.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
+          ...payload.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64(img)}` } })),
         ]
       }
       const r = await postJson(`${safeUrl}/v1/chat/completions`, { model: trimmedModel, messages, stream: false }, {
@@ -313,13 +319,13 @@ export async function callAIStream(
   if (payload.messages) {
     messages = payload.messages
   } else if (wire === 'ollama') {
-    messages = [{ role: 'user', content: payload.prompt, images: payload.images }]
+    messages = [{ role: 'user', content: payload.prompt, images: payload.images?.map(imageBase64) }]
   } else if (payload.images && payload.images.length > 0) {
     messages = [{
       role: 'user',
       content: [
         { type: 'text', text: payload.prompt },
-        ...payload.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
+        ...payload.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64(img)}` } })),
       ],
     }]
   } else {
@@ -416,11 +422,6 @@ export interface ChatToolsResult {
   toolCalls: ToolCallOut[]
 }
 
-function parseArgs(raw: unknown): string {
-  if (typeof raw === 'string') return raw
-  try { return JSON.stringify(raw ?? {}) } catch { return '{}' }
-}
-
 function toWireMessages(wire: string, messages: LlmChatMessage[]): any[] {
   return messages.map(m => {
     if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content }
@@ -437,7 +438,7 @@ function toWireMessages(wire: string, messages: LlmChatMessage[]): any[] {
         role: 'user',
         content: [
           { type: 'text', text: m.content },
-          ...m.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
+          ...m.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64(img)}` } })),
         ],
       }
     }
@@ -456,44 +457,94 @@ export async function callChatTools(
   if (!trimmedModel) throw new Error('Model is required but not provided')
   if (wire === 'anthropic') throw new Error('Anthropic 工具调用暂未支持，请使用 OpenAI 兼容或 Ollama 端点。')
 
+  // Always streaming: the streaming-with-images path is the one every vendor
+  // setup already proves (the screenshot pipelines); some engines reject
+  // non-streaming multimodal requests outright.
+  const url = wire === 'ollama' ? `${safeUrl}/api/chat` : `${safeUrl}/v1/chat/completions`
+  const body = wire === 'ollama'
+    ? { model: trimmedModel, messages: toWireMessages('ollama', payload.messages), tools: payload.tools, stream: true }
+    : {
+        model: trimmedModel,
+        messages: toWireMessages('openai', payload.messages),
+        tools: payload.tools.map(t => ({ type: 'function', function: t })),
+        stream: true,
+      }
+  const headers: Record<string, string> = wire === 'ollama'
+    ? { 'Content-Type': 'application/json' }
+    : { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+
   const signal = beginRequest()
   try {
-    let data: any
-    if (wire === 'ollama') {
-      const r = await postJson(`${safeUrl}/api/chat`, {
-        model: trimmedModel,
-        messages: toWireMessages('ollama', payload.messages),
-        tools: payload.tools,
-        stream: false,
-      }, { signal, timeout: 300000 })
-      data = r.data
-      const msg = data?.message
-      const toolCalls: ToolCallOut[] = (msg?.tool_calls || []).map((tc: any, i: number) => ({
-        id: `call_${Date.now()}_${i}`,
-        name: String(tc?.function?.name || tc?.name || ''),
-        arguments: parseArgs(tc?.function?.arguments ?? tc?.arguments),
-      })).filter((tc: ToolCallOut) => tc.name)
-      return { content: typeof msg?.content === 'string' ? msg.content : '', reasoning: '', toolCalls }
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+    let content = ''
+    let reasoning = ''
+    const toolAcc = new Map<number, ToolCallOut>()
+    const handleDelta = (delta: any) => {
+      if (typeof delta?.content === 'string') content += delta.content
+      const rc = delta?.reasoning_content ?? delta?.reasoning
+      if (typeof rc === 'string') reasoning += rc
+      if (Array.isArray(delta?.tool_calls)) {
+        for (const tc of delta.tool_calls) {
+          const idx = typeof tc.index === 'number' ? tc.index : toolAcc.size
+          const acc = toolAcc.get(idx) || { id: '', name: '', arguments: '' }
+          if (tc.id) acc.id = String(tc.id)
+          if (tc.function?.name) acc.name += String(tc.function.name)
+          const rawArgs = tc.function?.arguments
+          if (rawArgs != null) {
+            if (typeof rawArgs === 'string') acc.arguments += rawArgs
+            else { try { acc.arguments = JSON.stringify(rawArgs) } catch { /* ignore */ } }
+          }
+          toolAcc.set(idx, acc)
+        }
+      }
     }
 
-    // openai-compat / custom
-    const r = await postJson(`${safeUrl}/v1/chat/completions`, {
-      model: trimmedModel,
-      messages: toWireMessages('openai', payload.messages),
-      tools: payload.tools.map(t => ({ type: 'function', function: t })),
-      stream: false,
-    }, { signal, headers: { Authorization: `Bearer ${apiKey}` }, timeout: 300000 })
-    data = r.data
-    const msg = data?.choices?.[0]?.message
-    const toolCalls: ToolCallOut[] = (msg?.tool_calls || []).map((tc: any) => ({
-      id: String(tc?.id || `call_${Date.now()}`),
-      name: String(tc?.function?.name || ''),
-      arguments: parseArgs(tc?.function?.arguments),
-    })).filter((tc: ToolCallOut) => tc.name)
-    const reasoning =
-      typeof msg?.reasoning_content === 'string' ? msg.reasoning_content
-      : typeof msg?.reasoning === 'string' ? msg.reasoning : ''
-    return { content: typeof msg?.content === 'string' ? msg.content : '', reasoning, toolCalls }
+    const reader = (res.body as ReadableStream<Uint8Array> | null)?.getReader?.()
+    const decoder = new TextDecoder()
+    const feed = (chunk: string) => {
+      if (wire === 'ollama') {
+        // NDJSON: one JSON object per line.
+        for (const line of chunk.split('\n')) {
+          const t = line.trim()
+          if (!t) continue
+          try { handleDelta(JSON.parse(t)?.message) } catch { /* partial line — ignored */ }
+        }
+        return
+      }
+      // SSE: `data: {...}` frames, terminated by data: [DONE].
+      for (const line of chunk.split('\n')) {
+        const t = line.trim()
+        if (!t.startsWith('data:')) continue
+        const dataStr = t.slice(5).trim()
+        if (!dataStr || dataStr === '[DONE]') continue
+        try {
+          const json = JSON.parse(dataStr)
+          handleDelta(json?.choices?.[0]?.delta)
+        } catch { /* partial frame — ignored */ }
+      }
+    }
+
+    if (reader) {
+      let buf = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        feed(lines.join('\n'))
+      }
+      feed(buf)
+    } else {
+      feed(await res.text())
+    }
+
+    const toolCalls = [...toolAcc.values()]
+      .map((tc, i) => ({ id: tc.id || `call_${Date.now()}_${i}`, name: tc.name, arguments: tc.arguments || '{}' }))
+      .filter(tc => tc.name)
+    return { content, reasoning, toolCalls }
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e
     throw new Error(`${config.provider} AI Error: ${extractErrorMessage(e)}`)

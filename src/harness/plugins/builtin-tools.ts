@@ -1,30 +1,20 @@
 /**
- * Builtin screen tools — the agent's first capability set:
- *   capture_screen     grab the display under the cursor (Rust GDI)
- *   ocr_screen         capture + OCR the screen text
- *   ask_about_screen   capture (or reuse) + ask the vision model a question
- *   query_records      summarise recent invocation/conversation records
+ * Builtin tools — deliberately minimal for a multimodal-first agent:
+ *   capture_screen  grab the display under the cursor; the screenshot is
+ *                   returned as an image attachment so a vision model looks
+ *                   at it directly (no secondary OCR/VLM detour)
+ *   query_records   summarise recent invocation/conversation records
  *
- * All model access goes through ctx.llm so every call is logged; the tools
- * are plain ctx.tools registrations (reversible via ctx.collect).
+ * Pipeline-specific tools are contributed separately (see pipeline-tools).
  */
 import type { Plugin } from '@cordisjs/core'
 import type { ToolDef } from '../services'
 
 let lastCapture: { image: string; ts: number } | null = null
-const CAPTURE_TTL_MS = 15000
 
-async function getSettings(): Promise<any> {
-  return await (window.ipcRenderer as any).getSettings()
-}
-
-/** Primary vision model config from the current settings. */
-function visionConfig(s: any) {
-  return { provider: s?.vlmProvider || 'ollama', apiKey: s?.vlmApiKey || '', baseUrl: s?.vlmBaseUrl || '', model: s?.vlmModel || '' }
-}
-
-async function freshCapture(force = false): Promise<string> {
-  if (!force && lastCapture && Date.now() - lastCapture.ts < CAPTURE_TTL_MS) return lastCapture.image
+/** Reuse a fresh screenshot within the TTL instead of re-grabbing. */
+export async function freshCapture(force = false): Promise<string> {
+  if (!force && lastCapture && Date.now() - lastCapture.ts < 15000) return lastCapture.image
   const image = await (window.ipcRenderer as any).captureScreen()
   lastCapture = { image, ts: Date.now() }
   return image
@@ -37,46 +27,11 @@ export const BuiltinTools: Plugin.Object = {
     const defs: ToolDef[] = [
       {
         name: 'capture_screen',
-        description: '捕获当前屏幕的完整截图。之后可用 ask_about_screen 针对屏幕内容提问，或用 ocr_screen 读取屏幕文字。',
+        description: '捕获当前屏幕的完整截图。截图会作为图片直接返回给你（多模态），请直接观察图片内容回答问题。',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
         execute: async () => {
           const image = await freshCapture(true)
-          return { content: `已捕获全屏截图（base64 长度 ${image.length}）。可用 ask_about_screen 分析内容，或用 ocr_screen 提取文字。` }
-        },
-      },
-      {
-        name: 'ocr_screen',
-        description: '截取当前屏幕并识别其中的所有文字，返回纯文本。适合读取屏幕上的文字内容。',
-        parameters: { type: 'object', properties: {}, additionalProperties: false },
-        execute: async () => {
-          const image = await freshCapture(true)
-          const s = await getSettings()
-          const cfg = {
-            provider: s?.ocrProvider === 'local' ? 'ollama' : (s?.ocrProvider || s?.vlmProvider || 'ollama'),
-            apiKey: s?.ocrApiKey || s?.vlmApiKey || '',
-            baseUrl: s?.ocrBaseUrl || s?.vlmBaseUrl || '',
-            model: s?.ocrModel || s?.vlmModel || '',
-          }
-          const text = await ctx.llm.ocr(cfg, image)
-          return { content: text || '（未识别到文字）' }
-        },
-      },
-      {
-        name: 'ask_about_screen',
-        description: '针对当前屏幕内容向视觉模型提问并返回回答。参数 question 为想问的问题，例如「屏幕上红色按钮的文字是什么」。',
-        parameters: {
-          type: 'object',
-          properties: { question: { type: 'string', description: '关于屏幕内容的问题' } },
-          required: ['question'],
-          additionalProperties: false,
-        },
-        execute: async (args) => {
-          const question = String(args.question || '').trim()
-          if (!question) return { content: JSON.stringify({ error: 'INVALID_ARGS', message: 'question 不能为空' }) }
-          const image = await freshCapture()
-          const cfg = visionConfig(await getSettings())
-          const r = await ctx.llm.chat(cfg, { prompt: question, images: [image] })
-          return { content: r.content }
+          return { content: '已捕获当前屏幕截图，见下方图片。', images: [image] }
         },
       },
       {
