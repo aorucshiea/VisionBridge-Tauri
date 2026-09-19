@@ -383,10 +383,26 @@ fn get_settings(state: tauri::State<'_, Ctx>) -> Value {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, state: tauri::State<'_, Ctx>, settings: Value) -> Result<(), String> {
-    settings::save(&settings)?;
-    *state.settings.lock().unwrap() = settings.clone();
-    arm_shortcuts(&app, &settings);
-    set_selection_hook(&app, &settings);
+    // `savedConfigurations` is owned by the dedicated save/get/delete
+    // commands. The renderer round-trips a snapshot taken at startup, so
+    // trusting its copy here would wipe every saved profile on each
+    // settings save — keep the in-memory value instead.
+    let mut incoming = settings;
+    if let Some(obj) = incoming.as_object_mut() {
+        let saved = state
+            .settings
+            .lock()
+            .unwrap()
+            .get("savedConfigurations")
+            .cloned();
+        if let Some(saved) = saved {
+            obj.insert("savedConfigurations".into(), saved);
+        }
+    }
+    settings::save(&incoming)?;
+    *state.settings.lock().unwrap() = incoming.clone();
+    arm_shortcuts(&app, &incoming);
+    set_selection_hook(&app, &incoming);
     Ok(())
 }
 
