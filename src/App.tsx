@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Settings as SettingsIcon, ScanLine, MessageSquare, Save, Check, Minus, Square, X as CloseIcon, Cpu, Workflow, SlidersHorizontal, FolderOpen, History } from 'lucide-react'
+import { Settings as SettingsIcon, ScanLine, MessageSquare, Save, Check, Minus, Square, X as CloseIcon, Cpu, Workflow, SlidersHorizontal, FolderOpen, History, Boxes } from 'lucide-react'
 import ScreenshotMask from './components/ScreenshotMask'
 import ResultView from './components/ResultView'
 import TextChat from './components/TextChat'
@@ -12,6 +12,7 @@ import ProviderConfigSection, { type SectionModel } from './components/settings/
 import ValidationCard from './components/settings/ValidationCard'
 import SavedConfigs from './components/settings/SavedConfigs'
 import RecordsSection from './components/settings/RecordsSection'
+import SystemMapSection from './components/settings/SystemMapSection'
 import AppearanceSection from './components/settings/AppearanceSection'
 import ToolbarActionsSection from './components/settings/ToolbarActionsSection'
 import { translations, type TranslationDict } from './i18n'
@@ -71,14 +72,15 @@ const SECTION_KEYS: Record<SectionType, Record<keyof SectionModel, keyof AppSett
   llm2: { provider: 'llm2Provider', baseUrl: 'llm2BaseUrl', model: 'llm2Model', apiKey: 'llm2ApiKey', translatePrompt: 'llm2TranslatePrompt', explainPrompt: 'llm2ExplainPrompt', jsonPrompt: 'vlm2JsonPrompt' },
 }
 
-type SettingsSectionId = 'model' | 'pipeline' | 'general' | 'config' | 'records'
+type SettingsSectionId = 'model' | 'pipeline' | 'general' | 'config' | 'records' | 'system'
 
-const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; icon: ReactNode; labelKey: 'sectionModel' | 'sectionPipeline' | 'sectionGeneral' | 'sectionConfig' | 'sectionRecords' }> = [
+const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; icon: ReactNode; labelKey: 'sectionModel' | 'sectionPipeline' | 'sectionGeneral' | 'sectionConfig' | 'sectionRecords' | 'sectionSystem' }> = [
   { id: 'model', icon: <Cpu size={17} />, labelKey: 'sectionModel' },
   { id: 'pipeline', icon: <Workflow size={17} />, labelKey: 'sectionPipeline' },
   { id: 'general', icon: <SlidersHorizontal size={17} />, labelKey: 'sectionGeneral' },
   { id: 'config', icon: <FolderOpen size={17} />, labelKey: 'sectionConfig' },
   { id: 'records', icon: <History size={17} />, labelKey: 'sectionRecords' },
+  { id: 'system', icon: <Boxes size={17} />, labelKey: 'sectionSystem' },
 ]
 
 const TEST_STATUS_INIT: Record<TestTarget, TestStatus> = { vlm: 'idle', ocr: 'idle', llm: 'idle', vlm2: 'idle', llm2: 'idle' }
@@ -865,6 +867,10 @@ function App() {
               )}
               {settingsSection === 'records' && (
                 <RecordsSection theme={currentTheme} t={t} />
+              )}
+
+              {settingsSection === 'system' && (
+                <SystemMapSection theme={currentTheme} t={t} />
               )}
             </div>
           </div>

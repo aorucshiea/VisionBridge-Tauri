@@ -76,6 +76,42 @@ export interface TranslationDict {
   sectionGeneral: string
   sectionConfig: string
   sectionRecords: string
+  sectionSystem: string
+  systemCoreSub: string
+  systemCoreDesc: string
+  systemSvcLlm: string
+  systemSvcCapture: string
+  systemSvcSessions: string
+  systemPlugSessions: string
+  systemPlugSessionsDesc: string
+  systemPlugLlm: string
+  systemPlugLlmDesc: string
+  systemPlugCapture: string
+  systemPlugCaptureDesc: string
+  systemPlugBridge: string
+  systemPlugBridgeDesc: string
+  systemConsPipeline: string
+  systemConsApp: string
+  systemConsResult: string
+  systemConsProbe: string
+  systemConsRecords: string
+  systemExtTitle: string
+  systemExtAgent: string
+  systemExtProviders: string
+  systemExtTools: string
+  systemExtProfiles: string
+  systemProvides: string
+  systemDepends: string
+  systemUses: string
+  systemMilestone: string
+  systemExtPlugsInto: string
+  systemStatus: string
+  systemLive: string
+  systemDead: string
+  systemDetailHint: string
+  systemLegendBuiltin: string
+  systemLegendExt: string
+  systemLegendPlugins: string
   recordsTabSessions: string
   recordsTabCalls: string
   recordsEmptySessions: string
@@ -296,6 +332,42 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionGeneral: '通用',
     sectionConfig: '配置',
     sectionRecords: '记录',
+    sectionSystem: '系统',
+    systemCoreSub: '服务仓库 · 可逆注册 · 类型化事件',
+    systemCoreDesc: 'cordis 插件运行时：所有能力都是注册到共享 Context 的插件服务，注册是可回滚 effect，卸载自动撤销。',
+    systemSvcLlm: '模型服务',
+    systemSvcCapture: '截图服务',
+    systemSvcSessions: '记录服务',
+    systemPlugSessions: '记录插件',
+    systemPlugSessionsDesc: '记录调用与对话（一键一记录的本地存储，跨窗口无竞态，自动裁剪）。',
+    systemPlugLlm: '模型适配插件',
+    systemPlugLlmDesc: '把 chat/ocr/tts/asr/生图/模型列表 路由到平台桥，并为每次调用写调用记录。',
+    systemPlugCapture: '截图插件',
+    systemPlugCaptureDesc: '封装平台截屏能力，把屏幕区域捕获为 base64 图像。',
+    systemPlugBridge: '平台桥',
+    systemPlugBridgeDesc: 'window.ipcRenderer：Tauri 为渲染进程 fetch 垫片，Electron 为 preload→主进程桥。',
+    systemConsPipeline: '节点链引擎',
+    systemConsApp: '主窗口',
+    systemConsResult: '结果卡',
+    systemConsProbe: '模型探测',
+    systemConsRecords: '记录页',
+    systemExtTitle: '扩展位（规划中）',
+    systemExtAgent: 'Agent 循环',
+    systemExtProviders: '第三方 Provider',
+    systemExtTools: '自定义工具',
+    systemExtProfiles: 'Profile 叠加',
+    systemProvides: '提供服务',
+    systemDepends: '依赖',
+    systemUses: '使用服务',
+    systemMilestone: '里程碑',
+    systemExtPlugsInto: '挂载点',
+    systemStatus: '状态',
+    systemLive: '运行中',
+    systemDead: '未运行',
+    systemDetailHint: '点击图中的任意节点查看详情。',
+    systemLegendBuiltin: '内置插件',
+    systemLegendExt: '扩展位',
+    systemLegendPlugins: '插件数',
     recordsTabSessions: '对话',
     recordsTabCalls: '调用',
     recordsEmptySessions: '暂无对话记录',
@@ -514,6 +586,42 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionGeneral: 'General',
     sectionConfig: 'Configs',
     sectionRecords: 'Records',
+    sectionSystem: 'System',
+    systemCoreSub: 'Service registry · reversible effects · typed events',
+    systemCoreDesc: 'The cordis plugin runtime: every capability is a plugin service registered on a shared Context; registrations are reversible effects that unwind on unload.',
+    systemSvcLlm: 'LLM service',
+    systemSvcCapture: 'Capture service',
+    systemSvcSessions: 'Records service',
+    systemPlugSessions: 'Sessions plugin',
+    systemPlugSessionsDesc: 'Records calls and conversations (one local-storage key per record, race-free across windows, auto-trimmed).',
+    systemPlugLlm: 'LLM adapter plugin',
+    systemPlugLlmDesc: 'Routes chat/ocr/tts/asr/imagegen/model-list through the platform bridge and logs every invocation.',
+    systemPlugCapture: 'Capture plugin',
+    systemPlugCaptureDesc: 'Wraps the platform screenshot bridge to grab screen regions as base64 images.',
+    systemPlugBridge: 'Platform bridge',
+    systemPlugBridgeDesc: 'window.ipcRenderer: the Tauri renderer-fetch shim, or the Electron preload → main bridge.',
+    systemConsPipeline: 'Node-chain engine',
+    systemConsApp: 'Main window',
+    systemConsResult: 'Result card',
+    systemConsProbe: 'Model probe',
+    systemConsRecords: 'Records page',
+    systemExtTitle: 'Extension slots (planned)',
+    systemExtAgent: 'Agent loop',
+    systemExtProviders: 'Third-party providers',
+    systemExtTools: 'Custom tools',
+    systemExtProfiles: 'Profile overlays',
+    systemProvides: 'Provides',
+    systemDepends: 'Depends on',
+    systemUses: 'Uses',
+    systemMilestone: 'Milestone',
+    systemExtPlugsInto: 'Plugs into',
+    systemStatus: 'Status',
+    systemLive: 'Running',
+    systemDead: 'Not running',
+    systemDetailHint: 'Click any node in the map for details.',
+    systemLegendBuiltin: 'Builtin plugin',
+    systemLegendExt: 'Extension slot',
+    systemLegendPlugins: 'Plugins',
     recordsTabSessions: 'Chats',
     recordsTabCalls: 'Calls',
     recordsEmptySessions: 'No conversation records',
