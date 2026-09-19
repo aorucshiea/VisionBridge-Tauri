@@ -226,8 +226,7 @@ const SavedConfigs: React.FC<SavedConfigsProps> = (props) => {
             <button
               type="button"
               onClick={onSave}
-              disabled={!configName.trim()}
-              className="w-full h-10 rounded-field text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-[filter,transform] duration-fast ease-out-quart hover:brightness-[1.06] active:scale-[0.99] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:brightness-100"
+              className="w-full h-10 rounded-field text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-[filter,transform] duration-fast ease-out-quart hover:brightness-[1.06] active:scale-[0.99]"
               style={{ backgroundColor: theme.primary, color: theme.onPrimary }}
             >
               <Check size={14} />

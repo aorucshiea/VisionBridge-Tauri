@@ -81,6 +81,27 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; icon: ReactNode; labelKe
 
 const TEST_STATUS_INIT: Record<TestTarget, TestStatus> = { vlm: 'idle', ocr: 'idle', llm: 'idle', vlm2: 'idle', llm2: 'idle' }
 
+/** Snapshot name for the current pipeline: its primary model. Empty for modes
+ *  whose config is not captured by the saved-configuration snapshot. */
+function deriveConfigName(s: AppSettings): string {
+  switch (s.mode) {
+    case 'OCR+LLM': return s.llmModel || s.ocrModel || ''
+    case 'VLM+LLM': return s.llm2Model || s.vlm2Model || ''
+    case 'VLM': return s.vlmModel || ''
+    default: return ''
+  }
+}
+
+/** Compare captured config objects ignoring empty fields, so re-saving the
+ *  same configuration stays a no-op even if key sets differ slightly. */
+function configEqual(a: SavedConfiguration['config'], b: SavedConfiguration['config']): boolean {
+  const norm = (c: SavedConfiguration['config']) =>
+    Object.entries(c || {}).filter(([, v]) => v !== undefined && v !== '')
+  const ea = norm(a); const eb = norm(b)
+  if (ea.length !== eb.length) return false
+  return ea.every(([k, v]) => (eb.find(([k2]) => k2 === k)?.[1]) === v)
+}
+
 /** The app mark: a capture frame with a marker stroke through the middle. */
 function CaptureMark({ color, size = 26 }: { color: string; size?: number }) {
   return (
@@ -176,6 +197,14 @@ function App() {
     return () => window.clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.toolbarActions, windowType])
+
+  // Entering the 配置 page: offer the current pipeline's model name as the
+  // snapshot name, so saving works without typing anything first.
+  useEffect(() => {
+    if (settingsSection !== 'config') return
+    setConfigName(prev => prev || deriveConfigName(settings))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsSection, settings.mode, settings.vlmModel, settings.ocrModel, settings.llmModel, settings.vlm2Model, settings.llm2Model])
 
   useEffect(() => {
     if (windowType !== 'main') {
@@ -300,6 +329,9 @@ function App() {
     try {
       const result = await window.ipcRenderer.saveSettings(settings)
       if (result.success) {
+        // The footer button is reachable from every settings page, so it also
+        // refreshes the named configuration snapshot the user expects it to.
+        await saveProfile()
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus('idle'), 2000)
       } else {
@@ -357,15 +389,15 @@ function App() {
     })
   }
 
-  const handleSaveConfiguration = async () => {
-    if (!configName.trim()) {
-      tell(t('enterConfigName'), 'error')
-      return
-    }
-
+  /** Upsert the current model config as a named snapshot. An unchanged config
+   *  is a no-op and a same-name entry is replaced, so the always-visible
+   *  保存配置 button can be clicked on any page without spamming the list. */
+  const saveProfile = async (): Promise<boolean> => {
+    const name = (configName.trim() || deriveConfigName(settings)).trim()
+    if (!name) return false
     const configData = {
-      name: configName,
-      pipeline: settings.mode,
+      name,
+      pipeline: settings.mode as SavedConfiguration['pipeline'],
       tags: configTags,
       config: {
         vlmProvider: settings.vlmProvider, vlmModel: settings.vlmModel, vlmBaseUrl: settings.vlmBaseUrl, vlmApiKey: settings.vlmApiKey,
@@ -379,17 +411,33 @@ function App() {
     }
 
     try {
-      const result = await window.ipcRenderer.saveConfiguration(configData)
-      if (result.success) {
-        const configs = await window.ipcRenderer.getSavedConfigurations()
-        setSavedConfigurations(configs)
-        setConfigName('')
-        setConfigTags([])
-        tell(t('configSaved'))
+      const existing = await window.ipcRenderer.getSavedConfigurations()
+      const dups = existing.filter((c: SavedConfiguration) => c.name === name)
+      if (
+        dups.length === 1 &&
+        dups[0].pipeline === configData.pipeline &&
+        JSON.stringify([...(dups[0].tags || [])].sort()) === JSON.stringify([...configData.tags].sort()) &&
+        configEqual(dups[0].config, configData.config)
+      ) {
+        return true
       }
+      await window.ipcRenderer.saveConfiguration(configData)
+      for (const dup of dups) await window.ipcRenderer.deleteConfiguration(dup.id)
+      setSavedConfigurations(await window.ipcRenderer.getSavedConfigurations())
+      setConfigName(name)
+      return true
     } catch (error: any) {
       tell(`${t('saveFailed')}${error.message}`, 'error')
+      return false
     }
+  }
+
+  const handleSaveConfiguration = async () => {
+    if (!configName.trim() && !deriveConfigName(settings)) {
+      tell(t('enterConfigName'), 'error')
+      return
+    }
+    if (await saveProfile()) tell(t('configSaved'))
   }
 
   const handleLoadConfiguration = async (config: SavedConfiguration) => {
