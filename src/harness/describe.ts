@@ -7,13 +7,18 @@
  * so the map stays truthful.
  */
 import { harness } from './index'
+import { Agents } from './plugins/agents'
 import { Capture } from './plugins/capture'
 import { Llm } from './plugins/llm'
 import { Sessions } from './plugins/sessions'
+import { Tools } from './plugins/tools'
+import { BuiltinTools } from './plugins/builtin-tools'
 import type { TranslationDict } from '../i18n'
 
+export type ServiceKey = 'llm' | 'capture' | 'sessions' | 'tools' | 'agents'
+
 export interface ServiceInfo {
-  key: 'llm' | 'capture' | 'sessions'
+  key: ServiceKey
   labelKey: keyof TranslationDict
   live: boolean
   detail?: string
@@ -24,7 +29,7 @@ export interface PluginInfo {
   labelKey: keyof TranslationDict
   kind: 'builtin' | 'platform'
   live: boolean
-  provides: Array<ServiceInfo['key']>
+  provides: ServiceKey[]
   dependsOn: string[]
   descKey: keyof TranslationDict
 }
@@ -32,14 +37,14 @@ export interface PluginInfo {
 export interface ConsumerInfo {
   id: string
   labelKey: keyof TranslationDict
-  uses: Array<ServiceInfo['key']>
+  uses: ServiceKey[]
 }
 
 export interface ExtensionInfo {
   id: string
   labelKey: keyof TranslationDict
   milestone: string
-  plugsInto: Array<ServiceInfo['key'] | 'core'>
+  plugsInto: Array<ServiceKey | 'core'>
 }
 
 export interface HarnessMap {
@@ -59,7 +64,7 @@ export function describeHarness(): HarnessMap {
       key: 'llm',
       labelKey: 'systemSvcLlm',
       live: typeof ctx.llm?.chat === 'function',
-      detail: 'chat · ocr · tts · asr · imagegen · listModels',
+      detail: 'chat · tools · ocr · tts · asr',
     },
     {
       key: 'capture',
@@ -72,6 +77,17 @@ export function describeHarness(): HarnessMap {
       live: typeof ctx.sessions?.listCalls === 'function',
       detail: `${ctx.sessions.listCalls().length} / ${ctx.sessions.listSessions().length}`,
     },
+    {
+      key: 'tools',
+      labelKey: 'systemSvcTools',
+      live: typeof ctx.tools?.list === 'function',
+      detail: String(ctx.tools.list().length),
+    },
+    {
+      key: 'agents',
+      labelKey: 'systemSvcAgents',
+      live: typeof ctx.agents?.run === 'function',
+    },
   ]
 
   const plugins: PluginInfo[] = [
@@ -79,6 +95,11 @@ export function describeHarness(): HarnessMap {
       id: 'sessions', labelKey: 'systemPlugSessions', kind: 'builtin',
       live: registry.has(Sessions), provides: ['sessions'], dependsOn: [],
       descKey: 'systemPlugSessionsDesc',
+    },
+    {
+      id: 'tools-registry', labelKey: 'systemPlugTools', kind: 'builtin',
+      live: registry.has(Tools), provides: ['tools'], dependsOn: ['sessions'],
+      descKey: 'systemPlugToolsDesc',
     },
     {
       id: 'llm', labelKey: 'systemPlugLlm', kind: 'builtin',
@@ -91,6 +112,16 @@ export function describeHarness(): HarnessMap {
       descKey: 'systemPlugCaptureDesc',
     },
     {
+      id: 'builtin-tools', labelKey: 'systemPlugBuiltin', kind: 'builtin',
+      live: registry.has(BuiltinTools), provides: [], dependsOn: ['tools', 'llm', 'sessions'],
+      descKey: 'systemPlugBuiltinDesc',
+    },
+    {
+      id: 'agents', labelKey: 'systemPlugAgents', kind: 'builtin',
+      live: registry.has(Agents), provides: ['agents'], dependsOn: ['tools', 'llm', 'sessions'],
+      descKey: 'systemPlugAgentsDesc',
+    },
+    {
       id: 'platform-bridge', labelKey: 'systemPlugBridge', kind: 'platform',
       live: !!window.ipcRenderer, provides: [], dependsOn: [],
       descKey: 'systemPlugBridgeDesc',
@@ -100,15 +131,15 @@ export function describeHarness(): HarnessMap {
   const consumers: ConsumerInfo[] = [
     { id: 'pipeline', labelKey: 'systemConsPipeline', uses: ['llm'] },
     { id: 'app', labelKey: 'systemConsApp', uses: ['capture', 'sessions'] },
-    { id: 'result', labelKey: 'systemConsResult', uses: ['llm', 'sessions'] },
+    { id: 'result', labelKey: 'systemConsResult', uses: ['llm', 'agents', 'sessions'] },
     { id: 'probe', labelKey: 'systemConsProbe', uses: ['llm'] },
     { id: 'records', labelKey: 'systemConsRecords', uses: ['sessions'] },
   ]
 
   const extensions: ExtensionInfo[] = [
-    { id: 'agent', labelKey: 'systemExtAgent', milestone: 'M2', plugsInto: ['llm'] },
-    { id: 'providers', labelKey: 'systemExtProviders', milestone: 'M2', plugsInto: ['llm'] },
-    { id: 'tools', labelKey: 'systemExtTools', milestone: 'M3', plugsInto: ['llm'] },
+    { id: 'providers', labelKey: 'systemExtProviders', milestone: 'M2', plugsInto: ['tools'] },
+    { id: 'skills', labelKey: 'systemExtSkills', milestone: 'M2', plugsInto: ['tools', 'agents'] },
+    { id: 'mcp', labelKey: 'systemExtMcp', milestone: 'M2', plugsInto: ['tools'] },
     { id: 'profiles', labelKey: 'systemExtProfiles', milestone: 'M3', plugsInto: ['sessions'] },
   ]
 

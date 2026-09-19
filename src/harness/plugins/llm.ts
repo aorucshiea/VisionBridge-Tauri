@@ -11,7 +11,7 @@
  */
 import { Context, Service } from '@cordisjs/core'
 import type {
-  LlmChatConfig, LlmChatPayload, LlmChatResult, LlmDeltaSender, LlmService,
+  LlmChatConfig, LlmChatMessage, LlmChatPayload, LlmChatResult, LlmChatToolsResult, LlmDeltaSender, LlmService, ToolSchema,
 } from '../services'
 
 function ipc(): any {
@@ -57,6 +57,20 @@ export class Llm extends Service implements LlmService {
 
   async chatOnce(config: LlmChatConfig, payload: LlmChatPayload): Promise<string> {
     return await this.chat(config, payload).then(r => r.content)
+  }
+
+  async chatTools(
+    config: LlmChatConfig,
+    payload: { messages: LlmChatMessage[]; tools: ToolSchema[] },
+  ): Promise<LlmChatToolsResult> {
+    const bridge = ipc()
+    if (typeof bridge.chatTools !== 'function') {
+      throw new Error('当前平台桥不支持工具调用（chatTools）')
+    }
+    return await this.sessions().track('chat', config, () => bridge.chatTools(config, payload), {
+      inputChars: payload.messages.reduce((n, m) => n + (m.content?.length || 0), 0),
+      images: payload.messages.reduce((n, m) => n + (m.images?.length || 0), 0),
+    })
   }
 
   async ocr(config: LlmChatConfig, imageBase64: string): Promise<string> {

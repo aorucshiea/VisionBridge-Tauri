@@ -31,11 +31,33 @@ export interface LlmChatResult {
 
 export type LlmDeltaSender = (delta: { content?: string; reasoning?: string }) => void
 
+export interface LlmChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string
+  images?: string[]
+  /** Assistant message issuing tool calls (openai wire shape). */
+  toolCalls?: ToolCall[]
+  /** For role 'tool': the id of the call this result answers. */
+  toolCallId?: string
+}
+
+export interface LlmChatToolsResult extends LlmChatResult {
+  toolCalls: ToolCall[]
+}
+
 export interface LlmService {
   /** Chat completion; streams through `onDelta` when provided. */
   chat(config: LlmChatConfig, payload: LlmChatPayload, onDelta?: LlmDeltaSender): Promise<LlmChatResult>
   /** Non-streaming chat (plain text result). */
   chatOnce(config: LlmChatConfig, payload: LlmChatPayload): Promise<string>
+  /**
+   * Chat with tool schemas (function calling). Non-streaming MVP; returns the
+   * assistant text plus any tool calls the model issued.
+   */
+  chatTools(
+    config: LlmChatConfig,
+    payload: { messages: LlmChatMessage[]; tools: ToolSchema[] },
+  ): Promise<LlmChatToolsResult>
   /** Vision OCR — model asked to transcribe an image. */
   ocr(config: LlmChatConfig, imageBase64: string): Promise<string>
   /** Image generation (OpenAI-compatible endpoints only). */
@@ -46,6 +68,64 @@ export interface LlmService {
   asr(config: LlmChatConfig, audioBase64: string): Promise<string>
   /** The vendor's live model catalogue. */
   listModels(config: Omit<LlmChatConfig, 'model'> & { model?: string }): Promise<string[]>
+}
+
+// ---------------------------------------------------------------------------
+// ctx.tools — the shared tool registry (the agent/MCP/skills foundation).
+// ---------------------------------------------------------------------------
+
+/** Model-facing tool schema (name/description/JSON-Schema parameters). */
+export interface ToolSchema {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+}
+
+export interface ToolCall {
+  id: string
+  name: string
+  /** JSON-encoded arguments (openai wire shape). */
+  arguments: string
+}
+
+export interface ToolResult {
+  content: string
+  images?: string[]
+}
+
+/** Host-side tool definition: schema + executor. Never sent to the model. */
+export interface ToolDef extends ToolSchema {
+  execute(args: Record<string, unknown>): Promise<ToolResult | string>
+}
+
+export interface ToolsService {
+  /** Register a tool; returns a disposer (reversible registration). */
+  register(def: ToolDef): () => void
+  list(): ToolSchema[]
+  /** Execute by name; failures become structured error content, never throw. */
+  execute(name: string, args: Record<string, unknown>): Promise<ToolResult>
+}
+
+// ---------------------------------------------------------------------------
+// ctx.agents — the turn/step agent loop.
+// ---------------------------------------------------------------------------
+
+export type AgentEvent =
+  | { type: 'step'; index: number }
+  | { type: 'tool-call'; name: string; args: Record<string, unknown> }
+  | { type: 'tool-result'; name: string; ok: boolean; ms: number; preview: string }
+
+export interface AgentsService {
+  /**
+   * Run one agent turn: loop model requests and tool calls until the model
+   * answers without calling tools. Tool failures are fed back as content.
+   */
+  run(opts: {
+    userText: string
+    images?: string[]
+    maxSteps?: number
+    onEvent?: (e: AgentEvent) => void
+  }): Promise<{ content: string; steps: number }>
 }
 
 export interface ScreenshotRegion {
@@ -68,7 +148,7 @@ export interface CaptureService {
 // window-local kv store (one record per key, no cross-window write races).
 // ---------------------------------------------------------------------------
 
-export type CallKind = 'chat' | 'ocr' | 'imagegen' | 'tts' | 'asr' | 'listModels'
+export type CallKind = 'chat' | 'ocr' | 'imagegen' | 'tts' | 'asr' | 'listModels' | 'tool'
 
 export interface CallRecord {
   id: string
@@ -126,11 +206,13 @@ export interface SessionsService {
   clearCalls(): void
 }
 
-// Typed seams for the cordis context: `ctx.llm` / `ctx.capture` / `ctx.sessions`.
+// Typed seams for the cordis context: `ctx.llm` / `ctx.capture` / `ctx.sessions` / `ctx.tools` / `ctx.agents`.
 declare module '@cordisjs/core' {
   interface Context {
     llm: LlmService
     capture: CaptureService
     sessions: SessionsService
+    tools: ToolsService
+    agents: AgentsService
   }
 }

@@ -78,6 +78,16 @@ export interface TranslationDict {
   sectionRecords: string
   sectionSystem: string
   systemConsGroup: string
+  systemSvcTools: string
+  systemSvcAgents: string
+  systemPlugTools: string
+  systemPlugToolsDesc: string
+  systemPlugBuiltin: string
+  systemPlugBuiltinDesc: string
+  systemPlugAgents: string
+  systemPlugAgentsDesc: string
+  systemExtSkills: string
+  systemExtMcp: string
   systemCore: string
   systemCoreSub: string
   systemCoreDesc: string
@@ -135,6 +145,11 @@ export interface TranslationDict {
   recordsFailed: string
   recordsDuration: string
   recordsCallProvider: string
+  recordsKindTool: string
+  agentMode: string
+  agentModeTip: string
+  agentThinking: string
+  agentToolCalling: string
   appearance: string
   theme: string
   language: string
@@ -336,6 +351,14 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionRecords: '记录',
     sectionSystem: '系统',
     systemConsGroup: '消费方',
+    systemSvcTools: '工具服务',
+    systemSvcAgents: 'Agent 服务',
+    systemPlugTools: '工具注册表',
+    systemPlugToolsDesc: '统一的工具注册表：模型侧 schema 与宿主执行器分离，注册可回滚，调用全部落记录。',
+    systemPlugBuiltin: '内置工具',
+    systemPlugBuiltinDesc: '首批屏幕工具：capture_screen / ocr_screen / ask_about_screen / query_records。',
+    systemPlugAgents: 'Agent 插件',
+    systemPlugAgentsDesc: 'turn/step 循环：从会话历史组装请求，模型连续调工具直到给出最终答案；工具失败回填为下步内容。',
     systemCore: 'cordis 内核',
     systemCoreSub: '服务仓库 · 可逆注册 · 类型化事件',
     systemCoreDesc: 'cordis 插件运行时：所有能力都是注册到共享 Context 的插件服务，注册是可回滚 effect，卸载自动撤销。',
@@ -360,6 +383,8 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     systemExtProviders: '第三方 Provider',
     systemExtTools: '自定义工具',
     systemExtProfiles: 'Profile 叠加',
+    systemExtSkills: 'Skills 技能',
+    systemExtMcp: 'MCP 连接器',
     systemProvides: '提供服务',
     systemDepends: '依赖',
     systemUses: '使用服务',
@@ -393,6 +418,11 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     recordsFailed: '失败',
     recordsDuration: '耗时',
     recordsCallProvider: '服务',
+    recordsKindTool: '工具调用',
+    agentMode: 'Agent',
+    agentModeTip: 'Agent 模式：模型可连续调用截屏、OCR、屏幕问答等工具',
+    agentThinking: 'Agent 思考中…',
+    agentToolCalling: '调用工具',
     appearance: '外观设置',
     theme: '主题',
     language: '语言',
@@ -592,6 +622,14 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionRecords: 'Records',
     sectionSystem: 'System',
     systemConsGroup: 'Consumers',
+    systemSvcTools: 'Tools service',
+    systemSvcAgents: 'Agent service',
+    systemPlugTools: 'Tool registry',
+    systemPlugToolsDesc: 'Unified tool registry: model-facing schema split from host executor, reversible registration, all calls logged.',
+    systemPlugBuiltin: 'Builtin tools',
+    systemPlugBuiltinDesc: 'First screen tools: capture_screen / ocr_screen / ask_about_screen / query_records.',
+    systemPlugAgents: 'Agent plugin',
+    systemPlugAgentsDesc: 'turn/step loop: builds requests from conversation history, chains tool calls until the final answer; tool failures feed back as content.',
     systemCore: 'cordis core',
     systemCoreSub: 'Service registry · reversible effects · typed events',
     systemCoreDesc: 'The cordis plugin runtime: every capability is a plugin service registered on a shared Context; registrations are reversible effects that unwind on unload.',
@@ -616,6 +654,8 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     systemExtProviders: 'Third-party providers',
     systemExtTools: 'Custom tools',
     systemExtProfiles: 'Profile overlays',
+    systemExtSkills: 'Skills',
+    systemExtMcp: 'MCP connector',
     systemProvides: 'Provides',
     systemDepends: 'Depends on',
     systemUses: 'Uses',
@@ -649,6 +689,11 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     recordsFailed: 'Failed',
     recordsDuration: 'Duration',
     recordsCallProvider: 'Provider',
+    recordsKindTool: 'Tool call',
+    agentMode: 'Agent',
+    agentModeTip: 'Agent mode: the model can chain screen capture, OCR and screen Q&A tools',
+    agentThinking: 'Agent thinking…',
+    agentToolCalling: 'Calling tool',
     appearance: 'Appearance',
     theme: 'Theme',
     language: 'Language',

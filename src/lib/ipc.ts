@@ -25,6 +25,7 @@ import {
   type AIServiceConfig, type AIRequestPayload,
 } from './ai'
 import { wireOf } from './providers'
+import { callChatTools } from './ai'
 import type { SavedConfiguration } from '../types'
 import { harness } from '../harness'
 
@@ -445,6 +446,10 @@ const api = {
 
   // ---- AI (renderer-side HTTP) ------------------------------------------
   callAI: (config: AIServiceConfig, payload: AIRequestPayload) => callAI(config, payload),
+  chatTools: (
+    config: AIServiceConfig,
+    payload: { messages: any[]; tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }> },
+  ) => callChatTools(config, payload),
   callAIStream: (
     config: AIServiceConfig,
     payload: AIRequestPayload,

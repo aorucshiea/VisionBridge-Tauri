@@ -14,6 +14,9 @@ import { Context } from '@cordisjs/core'
 import { Llm } from './plugins/llm'
 import { Capture } from './plugins/capture'
 import { Sessions } from './plugins/sessions'
+import { Tools } from './plugins/tools'
+import { BuiltinTools } from './plugins/builtin-tools'
+import { Agents } from './plugins/agents'
 
 let root: Context | null = null
 
@@ -21,8 +24,11 @@ export function startHarness(): Context {
   if (root) return root
   const ctx = new Context()
   ctx.plugin(Sessions)
+  ctx.plugin(Tools)
   ctx.plugin(Llm)
   ctx.plugin(Capture)
+  ctx.plugin(BuiltinTools)
+  ctx.plugin(Agents)
   ctx.emit('harness/ready')
 
   // Testing/inspection seam.

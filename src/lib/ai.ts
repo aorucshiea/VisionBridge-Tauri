@@ -393,6 +393,116 @@ export async function callAIStream(
 }
 
 // ---------------------------------------------------------------------------
+// Chat with tools (function calling) — openai-compat and ollama wires.
+// Non-streaming MVP: the agent UI shows tool activity instead of tokens.
+// ---------------------------------------------------------------------------
+export interface LlmChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string
+  images?: string[]
+  toolCalls?: Array<{ id: string; name: string; arguments: string }>
+  toolCallId?: string
+}
+
+export interface ToolCallOut {
+  id: string
+  name: string
+  arguments: string
+}
+
+export interface ChatToolsResult {
+  content: string
+  reasoning: string
+  toolCalls: ToolCallOut[]
+}
+
+function parseArgs(raw: unknown): string {
+  if (typeof raw === 'string') return raw
+  try { return JSON.stringify(raw ?? {}) } catch { return '{}' }
+}
+
+function toWireMessages(wire: string, messages: LlmChatMessage[]): any[] {
+  return messages.map(m => {
+    if (m.role === 'tool') return { role: 'tool', tool_call_id: m.toolCallId, content: m.content }
+    if (m.role === 'assistant' && m.toolCalls?.length) {
+      return {
+        role: 'assistant',
+        content: m.content || null,
+        tool_calls: m.toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })),
+      }
+    }
+    if (m.role === 'user' && m.images?.length) {
+      if (wire === 'ollama') return { role: 'user', content: m.content, images: m.images }
+      return {
+        role: 'user',
+        content: [
+          { type: 'text', text: m.content },
+          ...m.images.map(img => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
+        ],
+      }
+    }
+    return { role: m.role, content: m.content }
+  })
+}
+
+export async function callChatTools(
+  config: AIServiceConfig,
+  payload: { messages: LlmChatMessage[]; tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }> },
+): Promise<ChatToolsResult> {
+  const { apiKey, baseUrl, model } = config
+  const wire = wireOf(config.provider)
+  const safeUrl = cleanUrl(baseUrl)
+  const trimmedModel = model ? model.trim() : ''
+  if (!trimmedModel) throw new Error('Model is required but not provided')
+  if (wire === 'anthropic') throw new Error('Anthropic 工具调用暂未支持，请使用 OpenAI 兼容或 Ollama 端点。')
+
+  const signal = beginRequest()
+  try {
+    let data: any
+    if (wire === 'ollama') {
+      const r = await postJson(`${safeUrl}/api/chat`, {
+        model: trimmedModel,
+        messages: toWireMessages('ollama', payload.messages),
+        tools: payload.tools,
+        stream: false,
+      }, { signal, timeout: 300000 })
+      data = r.data
+      const msg = data?.message
+      const toolCalls: ToolCallOut[] = (msg?.tool_calls || []).map((tc: any, i: number) => ({
+        id: `call_${Date.now()}_${i}`,
+        name: String(tc?.function?.name || tc?.name || ''),
+        arguments: parseArgs(tc?.function?.arguments ?? tc?.arguments),
+      })).filter((tc: ToolCallOut) => tc.name)
+      return { content: typeof msg?.content === 'string' ? msg.content : '', reasoning: '', toolCalls }
+    }
+
+    // openai-compat / custom
+    const r = await postJson(`${safeUrl}/v1/chat/completions`, {
+      model: trimmedModel,
+      messages: toWireMessages('openai', payload.messages),
+      tools: payload.tools.map(t => ({ type: 'function', function: t })),
+      stream: false,
+    }, { signal, headers: { Authorization: `Bearer ${apiKey}` }, timeout: 300000 })
+    data = r.data
+    const msg = data?.choices?.[0]?.message
+    const toolCalls: ToolCallOut[] = (msg?.tool_calls || []).map((tc: any) => ({
+      id: String(tc?.id || `call_${Date.now()}`),
+      name: String(tc?.function?.name || ''),
+      arguments: parseArgs(tc?.function?.arguments),
+    })).filter((tc: ToolCallOut) => tc.name)
+    const reasoning =
+      typeof msg?.reasoning_content === 'string' ? msg.reasoning_content
+      : typeof msg?.reasoning === 'string' ? msg.reasoning : ''
+    return { content: typeof msg?.content === 'string' ? msg.content : '', reasoning, toolCalls }
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e
+    throw new Error(`${config.provider} AI Error: ${extractErrorMessage(e)}`)
+  } finally {
+    endRequest(signal)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // OCR (vision model asked to transcribe)
 // ---------------------------------------------------------------------------
 const OCR_PROMPT_OLLAMA = "识别图片中的所有文字，只输出文字内容，不要添加任何解释或说明。如果图片中没有文字，输出'无'。"

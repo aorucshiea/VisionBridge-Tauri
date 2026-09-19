@@ -221,7 +221,7 @@ const RecordsSection: React.FC<{ theme: ThemeConfig; t: TFunc }> = ({ theme, t }
 
 const KIND_LABEL_KEYS: Record<CallKind, keyof TranslationDict> = {
   chat: 'recordsKindChat', ocr: 'recordsKindOcr', imagegen: 'recordsKindImagegen',
-  tts: 'recordsKindTts', asr: 'recordsKindAsr', listModels: 'recordsKindListModels',
+  tts: 'recordsKindTts', asr: 'recordsKindAsr', listModels: 'recordsKindListModels', tool: 'recordsKindTool',
 }
 
 export default RecordsSection

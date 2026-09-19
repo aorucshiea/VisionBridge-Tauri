@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Check, ChevronRight, Copy, Image as ImageIcon, ImagePlus, MessageSquare, X } from 'lucide-react'
+import { ArrowUp, Bot, Check, ChevronRight, Copy, Image as ImageIcon, ImagePlus, MessageSquare, X } from 'lucide-react'
 import { useTranslation } from '../hooks/useTranslation'
 import { captureRegion } from '../lib/screenshot'
 import { getActiveNodes, runNodeChain, taskPromptsOf, resolveAction, IMAGE_MARKER_RE } from '../lib/pipeline'
@@ -99,6 +99,7 @@ const ResultView: React.FC = () => {
   /** Local images picked for the next chat message (data URLs). */
   const [pendingImages, setPendingImages] = useState<string[]>([])
   const [saveAsHistory, setSaveAsHistory] = useState<boolean>(false)
+  const [agentMode, setAgentMode] = useState<boolean>(false)
   const [copied, setCopied] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -332,7 +333,31 @@ const ResultView: React.FC = () => {
     try {
       const ipc = window.ipcRenderer as any
       let response: { content: string; reasoning: string }
-      if (typeof ipc.chatWithAIStream === 'function') {
+      if (agentMode) {
+        // Agent turn: the model loops with tools; tool activity streams into
+        // a transient assistant bubble.
+        setMessages([...newMessages, { role: 'assistant', content: t('agentThinking') }])
+        const agentResult = await harness().agents.run({
+          userText: userMessage,
+          images: images?.map(s => s.replace(/^data:image\/\w+;base64,/, '')),
+          maxSteps: 8,
+          onEvent: (e) => {
+            setMessages(prev => {
+              const next = [...prev]
+              const last = next[next.length - 1]
+              if (!last || last.role !== 'assistant') return prev
+              if (e.type === 'tool-call') {
+                last.content = `⚙ ${t('agentToolCalling')} ${e.name}…`
+              } else if (e.type === 'tool-result') {
+                const line = `${e.ok ? '✓' : '✗'} ${e.name} (${(e.ms / 1000).toFixed(1)}s)`
+                last.content = last.content.includes('⚙') ? line : `${last.content}\n${line}`
+              }
+              return [...next]
+            })
+          },
+        })
+        response = { content: agentResult.content, reasoning: '' }
+      } else if (typeof ipc.chatWithAIStream === 'function') {
         // Stream into a placeholder assistant bubble.
         let streamed = ''
         let streamedReasoning = ''
@@ -578,18 +603,33 @@ const ResultView: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setSaveAsHistory(!saveAsHistory)}
-                  aria-pressed={saveAsHistory}
-                  className="flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] font-medium border transition-colors duration-fast ease-out-quart"
-                  style={saveAsHistory
-                    ? { backgroundColor: tint(theme.success, theme.card, 0.14), borderColor: tint(theme.success, theme.card, 0.3), color: theme.success }
-                    : { backgroundColor: 'transparent', borderColor: 'transparent', color: theme.textSecondary }}
-                >
-                  {saveAsHistory ? <Check size={11} /> : null}
-                  {saveAsHistory ? t('saveChat') : t('saveAsHistory')}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSaveAsHistory(!saveAsHistory)}
+                    aria-pressed={saveAsHistory}
+                    className="flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] font-medium border transition-colors duration-fast ease-out-quart"
+                    style={saveAsHistory
+                      ? { backgroundColor: tint(theme.success, theme.card, 0.14), borderColor: tint(theme.success, theme.card, 0.3), color: theme.success }
+                      : { backgroundColor: 'transparent', borderColor: 'transparent', color: theme.textSecondary }}
+                  >
+                    {saveAsHistory ? <Check size={11} /> : null}
+                    {saveAsHistory ? t('saveChat') : t('saveAsHistory')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentMode(!agentMode)}
+                    aria-pressed={agentMode}
+                    title={t('agentModeTip')}
+                    className="flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] font-medium border transition-colors duration-fast ease-out-quart"
+                    style={agentMode
+                      ? { backgroundColor: tint(theme.accent, theme.card, 0.14), borderColor: tint(theme.accent, theme.card, 0.3), color: theme.accent }
+                      : { backgroundColor: 'transparent', borderColor: 'transparent', color: theme.textSecondary }}
+                  >
+                    <Bot size={11} />
+                    {t('agentMode')}
+                  </button>
+                </div>
                 <span className="text-[11px]" style={{ color: theme.textMuted }}>
                   {t('messageCount').replace('{n}', String(messages.length))}
                 </span>
