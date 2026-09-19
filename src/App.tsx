@@ -16,7 +16,7 @@ import ToolbarActionsSection from './components/settings/ToolbarActionsSection'
 import { translations, type TranslationDict } from './i18n'
 import { themes, tint } from './theme/themes'
 import { DEFAULT_SETTINGS } from './lib/defaults'
-import { captureRegion } from './lib/screenshot'
+import { startHarness } from './harness'
 import { getActiveNodes, runNodeChain, taskPromptsOf, modeLabel, resolveAction } from './lib/pipeline'
 import type { AppSettings, SavedConfiguration, TestTarget, TestStatus } from './types'
 
@@ -221,6 +221,9 @@ function App() {
       })
 
       if (windowType === 'main') {
+        // The harness runtime lives in the main window only; popups keep the
+        // direct IPC contract.
+        startHarness()
         window.ipcRenderer.getSavedConfigurations().then((configs) => {
           setSavedConfigurations(configs)
         }).catch((err) => {
@@ -254,7 +257,7 @@ function App() {
         throw new Error(t('textModeNoCapture'))
       }
 
-      const croppedBase64 = await captureRegion(region)
+      const croppedBase64 = await startHarness().capture.region(region)
 
       // Single execution path: presets resolve to node chains too, so a
       // two-node custom pipeline and the plain VLM preset share one engine.

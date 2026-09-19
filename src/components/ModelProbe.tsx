@@ -3,6 +3,7 @@ import { Search, X } from 'lucide-react'
 import type { ThemeConfig } from '../types'
 import { tint } from '../theme/themes'
 import type { TFunc } from './settings/ui'
+import { harness } from '../harness'
 
 export interface CatalogEntry {
   id: string
@@ -37,7 +38,7 @@ const ModelProbe: React.FC<{
     window.ipcRenderer.modelCatalog({ mdIds }).then((entries: CatalogEntry[]) => {
       if (alive) setCatalog(entries)
     }).catch(() => { if (alive) setCatalog([]) })
-    window.ipcRenderer.listModels(config).then((models: string[]) => {
+    harness().llm.listModels(config).then((models: string[]) => {
       if (alive) setLive(models)
     }).catch((e: any) => { if (alive) setLiveError(e?.message || '') })
     return () => { alive = false }

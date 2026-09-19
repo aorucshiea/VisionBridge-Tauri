@@ -6,6 +6,7 @@ import {
   ScanEye, ScanText, BrainCircuit, Mic, Volume2, ImagePlus, Puzzle, type LucideIcon,
 } from 'lucide-react'
 import { DEFAULT_TOOLBAR_ACTIONS } from './defaults'
+import { harness } from '../harness'
 
 // ---------------------------------------------------------------------------
 // Node kind registry
@@ -273,26 +274,11 @@ export interface ChainRunOptions {
   onDelta?: (d: { content?: string; reasoning?: string }) => void
 }
 
-/**
- * One chat node run, streaming when the host IPC contract supports it
- * (Electron preload / Tauri shim both expose callAIStream). Falls back to the
- * plain non-streaming call on older contracts.
- */
-async function runChatNode(
-  cfg: { provider: string; apiKey: string; baseUrl: string; model: string },
-  payload: { prompt: string; images?: string[] },
-  onDelta?: ChainRunOptions['onDelta'],
-): Promise<{ content: string; reasoning: string }> {
-  const ipc = window.ipcRenderer as any
-  if (typeof ipc.callAIStream === 'function') {
-    return await ipc.callAIStream(cfg, payload, onDelta)
-  }
-  return { content: await ipc.callAI(cfg, payload), reasoning: '' }
-}
-
 export async function runNodeChain(opts: ChainRunOptions): Promise<ChainRunResult> {
   const { nodes, image, task, taskPrompts, promptOverride, onDelta } = opts
-  const ipc = window.ipcRenderer
+  // Node execution goes through the harness seam (ctx.llm) so alternative
+  // providers / agent loops can be swapped in without touching this engine.
+  const llm = harness().llm
 
   let lastText = ''
   let lastReasoning = ''
@@ -306,39 +292,39 @@ export async function runNodeChain(opts: ChainRunOptions): Promise<ChainRunResul
     switch (node.api) {
       case 'chat-vision': {
         if (!image) throw new Error('该节点需要图片输入：请把视觉类节点放在管道最前，或在它之前接入生图节点。')
-        const r = await runChatNode(cfg, { prompt, images: [image] }, onDelta)
+        const r = await llm.chat(cfg, { prompt, images: [image] }, onDelta)
         lastText = r.content
         lastReasoning = r.reasoning || ''
         break
       }
       case 'ocr': {
         if (!image) throw new Error('OCR 节点需要图片输入：请把 OCR 节点放在管道最前。')
-        const text = await ipc.callOCR(cfg, image)
+        const text = await llm.ocr(cfg, image)
         if (!text || text.trim().length === 0) throw new Error('OCR 未能识别到选区内的文字。')
         lastText = text
         lastReasoning = ''
         break
       }
       case 'chat': {
-        const r = await runChatNode(cfg, { prompt }, onDelta)
+        const r = await llm.chat(cfg, { prompt }, onDelta)
         lastText = r.content
         lastReasoning = r.reasoning || ''
         break
       }
       case 'imagegen': {
-        const src = await ipc.callImageGen(cfg, prompt || lastText || task)
+        const src = await llm.imagegen(cfg, prompt || lastText || task)
         producedImages.push(src)
         break
       }
       case 'tts': {
         const spoken = lastText.trim() !== '' ? lastText : prompt
         if (!spoken.trim()) throw new Error('语音合成节点需要前序节点产出文字。')
-        lastAudio = await ipc.callTTS({ ...cfg, voice: node.voice }, spoken)
+        lastAudio = await llm.tts({ ...cfg, voice: node.voice }, spoken)
         break
       }
       case 'asr': {
         if (!lastAudio) throw new Error('语音识别节点需要音频输入：请在前方接入一个语音合成节点。')
-        lastText = await ipc.callASR(cfg, lastAudio)
+        lastText = await llm.asr(cfg, lastAudio)
         break
       }
       default:
