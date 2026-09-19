@@ -77,6 +77,8 @@ export interface TranslationDict {
   sectionConfig: string
   sectionRecords: string
   sectionSystem: string
+  systemConsGroup: string
+  systemCore: string
   systemCoreSub: string
   systemCoreDesc: string
   systemSvcLlm: string
@@ -333,6 +335,8 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionConfig: '配置',
     sectionRecords: '记录',
     sectionSystem: '系统',
+    systemConsGroup: '消费方',
+    systemCore: 'cordis 内核',
     systemCoreSub: '服务仓库 · 可逆注册 · 类型化事件',
     systemCoreDesc: 'cordis 插件运行时：所有能力都是注册到共享 Context 的插件服务，注册是可回滚 effect，卸载自动撤销。',
     systemSvcLlm: '模型服务',
@@ -587,6 +591,8 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionConfig: 'Configs',
     sectionRecords: 'Records',
     sectionSystem: 'System',
+    systemConsGroup: 'Consumers',
+    systemCore: 'cordis core',
     systemCoreSub: 'Service registry · reversible effects · typed events',
     systemCoreDesc: 'The cordis plugin runtime: every capability is a plugin service registered on a shared Context; registrations are reversible effects that unwind on unload.',
     systemSvcLlm: 'LLM service',
