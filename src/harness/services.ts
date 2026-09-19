@@ -60,10 +60,77 @@ export interface CaptureService {
   region(region: ScreenshotRegion): Promise<string>
 }
 
-// Typed seams for the cordis context: `ctx.llm` / `ctx.capture`.
+// ---------------------------------------------------------------------------
+// ctx.sessions — conversation & invocation records (the harness "logbook").
+//
+// Every model call flowing through ctx.llm is recorded automatically; capture
+// runs and opt-in follow-up chats are recorded as conversations. Storage is a
+// window-local kv store (one record per key, no cross-window write races).
+// ---------------------------------------------------------------------------
+
+export type CallKind = 'chat' | 'ocr' | 'imagegen' | 'tts' | 'asr' | 'listModels'
+
+export interface CallRecord {
+  id: string
+  ts: number
+  kind: CallKind
+  provider: string
+  model: string
+  baseUrl: string
+  durationMs: number
+  ok: boolean
+  error?: string
+  inputChars?: number
+  images?: number
+  outputChars?: number
+  preview?: string
+}
+
+export interface SessionMessage {
+  role: 'user' | 'assistant'
+  content: string
+  reasoning?: string
+  /** Downscaled preview of the first attached image (data URL). */
+  image?: string
+  ts: number
+}
+
+export interface SessionRecord {
+  id: string
+  ts: number
+  updatedAt: number
+  type: 'capture' | 'chat'
+  title: string
+  mode?: string
+  model?: string
+  messages: SessionMessage[]
+}
+
+export interface SessionsService {
+  /** Time a model call and append a call record; rethrows on failure. */
+  track<T>(
+    kind: CallKind,
+    config: { provider: string; model: string; baseUrl: string },
+    fn: () => Promise<T>,
+    meta?: { inputChars?: number; images?: number },
+  ): Promise<T>
+  startSession(init: { type: SessionRecord['type']; title: string; mode?: string; model?: string }): SessionRecord
+  /** Append the user turn; `image` (base64/dataURL) is stored as a thumbnail. */
+  appendUserMessage(sessionId: string, content: string, image?: string): Promise<void>
+  appendAssistantMessage(sessionId: string, content: string, reasoning?: string): void
+  listSessions(): SessionRecord[]
+  listCalls(): CallRecord[]
+  deleteSession(id: string): void
+  deleteCall(id: string): void
+  clearSessions(): void
+  clearCalls(): void
+}
+
+// Typed seams for the cordis context: `ctx.llm` / `ctx.capture` / `ctx.sessions`.
 declare module '@cordisjs/core' {
   interface Context {
     llm: LlmService
     capture: CaptureService
+    sessions: SessionsService
   }
 }

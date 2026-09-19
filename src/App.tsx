@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Settings as SettingsIcon, ScanLine, MessageSquare, Save, Check, Minus, Square, X as CloseIcon, Cpu, Workflow, SlidersHorizontal, FolderOpen } from 'lucide-react'
+import { Settings as SettingsIcon, ScanLine, MessageSquare, Save, Check, Minus, Square, X as CloseIcon, Cpu, Workflow, SlidersHorizontal, FolderOpen, History } from 'lucide-react'
 import ScreenshotMask from './components/ScreenshotMask'
 import ResultView from './components/ResultView'
 import TextChat from './components/TextChat'
@@ -11,6 +11,7 @@ import OfficialPresets from './components/settings/OfficialPresets'
 import ProviderConfigSection, { type SectionModel } from './components/settings/ProviderConfigSection'
 import ValidationCard from './components/settings/ValidationCard'
 import SavedConfigs from './components/settings/SavedConfigs'
+import RecordsSection from './components/settings/RecordsSection'
 import AppearanceSection from './components/settings/AppearanceSection'
 import ToolbarActionsSection from './components/settings/ToolbarActionsSection'
 import { translations, type TranslationDict } from './i18n'
@@ -70,13 +71,14 @@ const SECTION_KEYS: Record<SectionType, Record<keyof SectionModel, keyof AppSett
   llm2: { provider: 'llm2Provider', baseUrl: 'llm2BaseUrl', model: 'llm2Model', apiKey: 'llm2ApiKey', translatePrompt: 'llm2TranslatePrompt', explainPrompt: 'llm2ExplainPrompt', jsonPrompt: 'vlm2JsonPrompt' },
 }
 
-type SettingsSectionId = 'model' | 'pipeline' | 'general' | 'config'
+type SettingsSectionId = 'model' | 'pipeline' | 'general' | 'config' | 'records'
 
-const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; icon: ReactNode; labelKey: 'sectionModel' | 'sectionPipeline' | 'sectionGeneral' | 'sectionConfig' }> = [
+const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; icon: ReactNode; labelKey: 'sectionModel' | 'sectionPipeline' | 'sectionGeneral' | 'sectionConfig' | 'sectionRecords' }> = [
   { id: 'model', icon: <Cpu size={17} />, labelKey: 'sectionModel' },
   { id: 'pipeline', icon: <Workflow size={17} />, labelKey: 'sectionPipeline' },
   { id: 'general', icon: <SlidersHorizontal size={17} />, labelKey: 'sectionGeneral' },
   { id: 'config', icon: <FolderOpen size={17} />, labelKey: 'sectionConfig' },
+  { id: 'records', icon: <History size={17} />, labelKey: 'sectionRecords' },
 ]
 
 const TEST_STATUS_INIT: Record<TestTarget, TestStatus> = { vlm: 'idle', ocr: 'idle', llm: 'idle', vlm2: 'idle', llm2: 'idle' }
@@ -252,6 +254,7 @@ function App() {
     window.ipcRenderer.cancelAiRequests()
     window.ipcRenderer.showResult({ x: region.x + region.width + 10, y: region.y, content: t('processing'), processing: true })
 
+    let recordId: string | null = null
     try {
       if (settings.mode === 'TEXT') {
         throw new Error(t('textModeNoCapture'))
@@ -266,8 +269,18 @@ function App() {
         throw new Error(t('pipelineNeedsNode'))
       }
 
-      const { task, promptOverride } = resolveAction(actionId, settings)
-      const { content: result } = await runNodeChain({
+      const { task, promptOverride, label: actionLabel } = resolveAction(actionId, settings)
+      const sessions = startHarness().sessions
+      const record = sessions.startSession({
+        type: 'capture',
+        title: actionLabel,
+        mode: settings.mode,
+        model: deriveConfigName(settings) || undefined,
+      })
+      recordId = record.id
+      await sessions.appendUserMessage(record.id, actionLabel, croppedBase64)
+
+      const { content: result, reasoning: resultReasoning } = await runNodeChain({
         nodes,
         image: croppedBase64,
         task,
@@ -276,6 +289,7 @@ function App() {
         // The main window runs the chain; the floating result card renders it.
         onDelta: (d) => { try { window.ipcRenderer.streamResultDelta?.(d) } catch { /* ignore */ } },
       })
+      sessions.appendAssistantMessage(record.id, result, resultReasoning)
 
       if (!abortController.signal.aborted) {
         window.ipcRenderer.showResult({ x: region.x + region.width + 10, y: region.y, content: result })
@@ -289,6 +303,9 @@ function App() {
           window.ipcRenderer.hideResult()
         }
       } else {
+        if (recordId) {
+          try { startHarness().sessions.appendAssistantMessage(recordId, `Error: ${error.message}`) } catch { /* ignore */ }
+        }
         window.ipcRenderer.showResult({ x: region.x + region.width + 10, y: region.y, content: `Error: ${error.message}` })
       }
     } finally {
@@ -845,6 +862,9 @@ function App() {
                     t={t}
                   />
                 </>
+              )}
+              {settingsSection === 'records' && (
+                <RecordsSection theme={currentTheme} t={t} />
               )}
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useTranslation } from '../hooks/useTranslation'
 import { captureRegion } from '../lib/screenshot'
 import { getActiveNodes, runNodeChain, taskPromptsOf, resolveAction, IMAGE_MARKER_RE } from '../lib/pipeline'
 import { themes, tint } from '../theme/themes'
+import { harness } from '../harness'
 import type { ThemeConfig } from '../types'
 
 interface ChatMessage {
@@ -102,6 +103,8 @@ const ResultView: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const copyTimer = useRef<number | null>(null)
+  /** Conversation record (ctx.sessions) created on the first saved exchange. */
+  const sessionIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const ipc = window.ipcRenderer
@@ -251,11 +254,8 @@ const ResultView: React.FC = () => {
   }
 
   const handleClose = () => {
-    // Save chat history in the background - never block closing
-    if (saveAsHistory && messages.length > 0) {
-      window.ipcRenderer.saveChatHistory({ messages, originalContent: content })
-        .catch((error) => console.error('Failed to save chat history:', error))
-    }
+    // Conversation records are written incrementally on each saved exchange,
+    // so closing needs no history flush.
     window.ipcRenderer.hideResult()
   }
 
@@ -314,6 +314,21 @@ const ResultView: React.FC = () => {
     const newMessages = [...messages, { role: 'user' as const, content: userMessage, images }]
     setMessages(newMessages)
 
+    // Conversation record: created on the first exchange when the user opted
+    // into 保存历史, then extended on every further exchange.
+    const sessions = harness().sessions
+    if (saveAsHistory) {
+      try {
+        if (!sessionIdRef.current) {
+          sessionIdRef.current = sessions.startSession({
+            type: 'chat',
+            title: userMessage || content.slice(0, 40),
+          }).id
+        }
+        await sessions.appendUserMessage(sessionIdRef.current, userMessage, images?.[0])
+      } catch { /* records must never break the chat */ }
+    }
+
     try {
       const ipc = window.ipcRenderer as any
       let response: { content: string; reasoning: string }
@@ -343,8 +358,14 @@ const ResultView: React.FC = () => {
         response = { content: await window.ipcRenderer.chatWithAI(newMessages.map(m => ({ role: m.role, content: m.content })), images), reasoning: '' }
       }
       setMessages([...newMessages, { role: 'assistant', content: response.content, reasoning: response.reasoning || undefined }])
+      if (saveAsHistory && sessionIdRef.current) {
+        try { sessions.appendAssistantMessage(sessionIdRef.current, response.content, response.reasoning) } catch { /* ignore */ }
+      }
     } catch (error: any) {
       setMessages([...newMessages, { role: 'assistant', content: `Error: ${error.message}` }])
+      if (saveAsHistory && sessionIdRef.current) {
+        try { sessions.appendAssistantMessage(sessionIdRef.current, `Error: ${error.message}`) } catch { /* ignore */ }
+      }
     } finally {
       setIsSending(false)
     }

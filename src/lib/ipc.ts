@@ -26,6 +26,7 @@ import {
 } from './ai'
 import { wireOf } from './providers'
 import type { SavedConfiguration } from '../types'
+import { harness } from '../harness'
 
 // ---------------------------------------------------------------------------
 // Which window is this?
@@ -222,7 +223,7 @@ async function chatWithAI(
       ? { provider: settings.vlmProvider, apiKey: settings.vlmApiKey, baseUrl: settings.vlmBaseUrl, model: settings.vlmModel }
       : resolveTextRunner(settings).config
 
-  return callAI(config, {
+  return harness().llm.chatOnce(config, {
     prompt: messages[messages.length - 1].content,
     messages: messages.map(m => ({ role: m.role, content: m.content })),
     images: images && images.length ? images : undefined,
@@ -242,7 +243,7 @@ async function chatWithAIStream(
       ? { provider: settings.vlmProvider, apiKey: settings.vlmApiKey, baseUrl: settings.vlmBaseUrl, model: settings.vlmModel }
       : resolveTextRunner(settings).config
 
-  return callAIStream(config, {
+  return harness().llm.chat(config, {
     prompt: messages[messages.length - 1].content,
     messages: messages.map(m => ({ role: m.role, content: m.content })),
     images: images && images.length ? images : undefined,

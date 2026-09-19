@@ -75,6 +75,28 @@ export interface TranslationDict {
   sectionPipeline: string
   sectionGeneral: string
   sectionConfig: string
+  sectionRecords: string
+  recordsTabSessions: string
+  recordsTabCalls: string
+  recordsEmptySessions: string
+  recordsEmptyCalls: string
+  recordsEmptyMessages: string
+  recordsClear: string
+  recordsClearConfirm: string
+  recordsTypeCapture: string
+  recordsTypeChat: string
+  recordsRoleUser: string
+  recordsRoleAssistant: string
+  recordsKindChat: string
+  recordsKindOcr: string
+  recordsKindImagegen: string
+  recordsKindTts: string
+  recordsKindAsr: string
+  recordsKindListModels: string
+  recordsOk: string
+  recordsFailed: string
+  recordsDuration: string
+  recordsCallProvider: string
   appearance: string
   theme: string
   language: string
@@ -273,6 +295,28 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionPipeline: '管道',
     sectionGeneral: '通用',
     sectionConfig: '配置',
+    sectionRecords: '记录',
+    recordsTabSessions: '对话',
+    recordsTabCalls: '调用',
+    recordsEmptySessions: '暂无对话记录',
+    recordsEmptyCalls: '暂无调用记录',
+    recordsEmptyMessages: '（无消息）',
+    recordsClear: '清空',
+    recordsClearConfirm: '确定清空全部记录？',
+    recordsTypeCapture: '截图',
+    recordsTypeChat: '对话',
+    recordsRoleUser: '问',
+    recordsRoleAssistant: '答',
+    recordsKindChat: '聊天',
+    recordsKindOcr: '文字识别',
+    recordsKindImagegen: '生图',
+    recordsKindTts: '语音合成',
+    recordsKindAsr: '语音识别',
+    recordsKindListModels: '模型列表',
+    recordsOk: '成功',
+    recordsFailed: '失败',
+    recordsDuration: '耗时',
+    recordsCallProvider: '服务',
     appearance: '外观设置',
     theme: '主题',
     language: '语言',
@@ -469,6 +513,28 @@ export const translations: Record<'zh' | 'en', TranslationDict> = {
     sectionPipeline: 'Pipelines',
     sectionGeneral: 'General',
     sectionConfig: 'Configs',
+    sectionRecords: 'Records',
+    recordsTabSessions: 'Chats',
+    recordsTabCalls: 'Calls',
+    recordsEmptySessions: 'No conversation records',
+    recordsEmptyCalls: 'No invocation records',
+    recordsEmptyMessages: '(no messages)',
+    recordsClear: 'Clear',
+    recordsClearConfirm: 'Clear all records?',
+    recordsTypeCapture: 'Capture',
+    recordsTypeChat: 'Chat',
+    recordsRoleUser: 'Q',
+    recordsRoleAssistant: 'A',
+    recordsKindChat: 'Chat',
+    recordsKindOcr: 'OCR',
+    recordsKindImagegen: 'ImageGen',
+    recordsKindTts: 'TTS',
+    recordsKindAsr: 'ASR',
+    recordsKindListModels: 'Model list',
+    recordsOk: 'OK',
+    recordsFailed: 'Failed',
+    recordsDuration: 'Duration',
+    recordsCallProvider: 'Provider',
     appearance: 'Appearance',
     theme: 'Theme',
     language: 'Language',
